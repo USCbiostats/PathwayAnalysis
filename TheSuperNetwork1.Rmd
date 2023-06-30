@@ -1,0 +1,344 @@
+---
+title: "SuperNetwork1"
+output: html_document
+date: "2023-06-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Working with the Super-Network
+  
+In this doc we will explore working with the super-network, S, 
+the mother of all networks. (More formally, the largest connected sub-graph in the union of all gene networks from KEGG.)
+
+Load whatever libraries we need:
+```{r, libs}
+library(igraph)
+library(ggplot2)
+```
+
+Load the version of S constructed by Bryan:
+```{r, loadS}
+load("~/Dropbox/Mac/Desktop/Simple_SIF_network_reactome.RData")
+```
+
+The network is in a variable called g.subg. It is an 'igraph'
+We'll rename it to S:
+```{r, rename}
+S <- g.subg
+rm(g.subg)
+head(S)
+```
+
+The summary of S gives us a few useful bits of info:
+```{r, summary}
+summary(S)
+```
+
+DN means that it is a 'D'irected network in which th e nodes have 'N'ames.
+There are 11870 nodes and 347970 edges
+
+We will want to take subnetworks with S. 
+Let's explore how to do tjhis using a smaller graph.
+Here's how to construct a graph from the existing igraph library:
+
+```{r, testgraphs}
+g <- make_graph('Zachary')
+plot(g)
+```
+
+Here's how to generate a random graph
+(taken from https://r.igraph.org/articles/igraph.html).
+```{r, random}
+set.seed(33)
+rg1 <- sample_grg(50, 0.2,coords=TRUE)
+summary(rg1)
+vertex_attr_names(rg1)
+plot(rg1,frame.width=3)
+plot(rg1,frame.width=6,label.cex=0.1,layout=layout_nicely)
+```
+
+This example generates a geometric random graph: n points are chosen randomly and uniformly inside the unit square and pairs of points closer to each other than a predefined distance d are connected by an edge. 
+
+It doesn't plot particularly nicely yet.
+
+Manipulating the vertex attributes:
+```{r, atrributes}
+xcoord <- get.vertex.attribute(rg1,'x')
+ycoord <- get.vertex.attribute(rg1,'y')
+coords <- cbind(xcoord,ycoord)
+plot(rg1,vertex.label.cex=0.5,vertex.layout=5*coords, vertex.size=25, vertex.color="blue",margin=0,asp=0.5)
+V(rg1)$x   # to access the x-coords
+
+```
+
+
+
+Let's aim to construct a subgraph of all vertices within 2 steps of vertex 3. What pre-defined functions might be useful here?
+
+Edges, vertices and entire mx can be accessed as follows: (nice tutorial at https://kateto.net/wp-content/uploads/2016/01/NetSciX_2016_Workshop.pdf)
+```{r, eval=TRUE}
+E(rg1)
+V(rg1)
+#net[]
+diam <- get_diameter(rg1, directed=F)
+diam
+plot(rg1, layout=coords, vertex.color="cyan",)
+```
+
+Un-used code that helped me debug (Let's switch to a ring graph for now...)
+```{r, ring, eval=FALSE}
+#rg1 <- make_ring(n=20)
+plot(rg1)
+```
+
+
+It is simple to calculate distances between nodes:
+```{r, dist}
+DM <- distances(rg1,v=V(rg1),to=V(rg1))
+```
+
+Create a sub-graph of all vertices within 2 of vertex 3 
+(carrying over the edges that connect them).
+I want to keep track of the original vertex IDs, so I do that 
+manually (they are lost otherwise):
+
+```{r, subgraph}
+sub <- as.numeric(DM[3,]<2.5)
+subIDs <- which(sub==1)
+V(rg1)$MyID <- 1:vcount(rg1)
+rsub1 <- subgraph(rg1,vids=subIDs)
+plot(rsub1,vertex.size=1)
+plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID)
+```
+
+
+Let's try it on the super-network S:
+```{r, firsttest}
+DM <- distances(S,v=V(S),to=V(S))
+sub <- as.numeric(DM[3,]<1.5)
+subIDs <- which(sub==1)
+V(S)$MyID <- 1:vcount(S)
+rsub1 <- subgraph(S,vids=subIDs)
+plot(rsub1,vertex.size=1)
+plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID)
+```
+
+There are over 4000 vertices within 2 steps of vertex 3, which is a bit of a problem for plotting!
+there are 300 nodes that are neighbors of vertex 10.
+
+Let's find a better vertex to work with
+We look at the degree of nodes to help
+```{r, degree}
+LowDegreeVertices <- which(degree(S)<2)
+(length(LowDegreeVertices))
+```
+
+```{r }
+sub <- as.numeric(DM[LowDegreeVertices[1],]<4.5)
+subIDs <- which(sub==1)
+V(S)$MyID <- 1:vcount(S)
+rsub1 <- subgraph(S,vids=subIDs)
+plot(rsub1,vertex.size=1)
+plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID,vertex.label.cex=0.5,edge.arrow.size=0.1)
+plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$names,vertex.label.cex=0.5,edge.arrow.size=0.1)
+
+
+```
+
+
+Let's write a function to pull out a subgraph of all vertices within 'NeighborDist'
+of vertex FocalVertex (the index of the focal vertex) on graph 'Network'
+```{r, NbrFn}
+NeighborSubgraph <- function(Network,FocalVertex,NeighborDist)
+{
+  DM <- distances(Network,v=V(Network),to=V(Network))
+  sub <- as.numeric(DM[FocalVertex,] <= NeighborDist)
+  subIDs <- which(sub==1)
+  V(Network)$MyID <- 1:vcount(Network)
+  ThisSub <- subgraph(Network,vids=subIDs)
+  return (ThisSub)
+}
+```
+
+And a function to pick low degree vertices, which might be good focal vertices:
+```{r, lowdegreefn}
+LowDegreeVertices <- function(Network,MaxDegree)
+{
+  IDs <- which(degree(Network)<=MaxDegree)
+  #IDs <- which(LDVs==1)
+  return (IDs)
+}
+```
+
+
+
+Test it:
+```{r , subgraphtest}
+S2 <- make_ring(20)
+set.seed(33)
+S3 <- sample_grg(50, 0.2,coords=TRUE)
+plot(S3)
+x <- components(S3)
+cat("Number of connected components: ",length(x$csize),"\n")
+LowDegVerts <- LowDegreeVertices(S3,3)
+(LowDegVerts)
+SubNet <- NeighborSubgraph(S3,LowDegVerts[1],2)
+plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+SubNet <- NeighborSubgraph(S3,LowDegVerts[1],3)
+plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+SubNet <- NeighborSubgraph(S3,LowDegVerts[1],4)
+plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+
+SubNet <- NeighborSubgraph(S3,LowDegVerts[9],4)
+plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+
+```
+
+
+Next, let's try defining a subgraph in a different way.
+We will start with one vertex and then itrerate the following untit the graph is big enough
+1. Pick a vertex in the subgraph uniformly at random
+2. Find a neighbor of that vertex: add it if it is not already in the graph; else go back to 1.
+
+Here's some code suggested by Copilot (I gave it the first two lines)
+```{r, eval=FALSE}
+g <- sample_grg(50, 0.2,coords=TRUE)
+subg <- NA
+plot(g)
+
+# pick a random vertex  (I gave this to Copilot, it suggested the following 7 lines)
+v <- sample(1:vcount(g), 1)
+# get the shortest paths from v to all other vertices
+sp <- get.shortest.paths(g, v, mode="out")
+# get the indices of the vertices that are at distance 1 from v
+v2 <- which(sp[[1]]==1)
+# sample one of those
+v2 <- sample(v2, 1)
+
+# add it to subg
+subg <- c(subg, v2)
+```
+
+That doesn't quite work, but suggests this:
+
+```{r, v2}
+set.seed(33)
+g <- sample_grg(50, 0.2,coords=TRUE)
+subg <- NA
+plot(g)
+
+v <- sample(1:vcount(g), 1)
+# get the neighbors of v 
+v1 <- neighbors(g, v, mode="all")
+
+# sample one of those
+v2 <- sample(v1, 1)
+
+# add it to subg
+subg <- c(subg, v2)
+```
+
+```{r, eval=FALSE}
+# Now wrap this up in a function (given this comment, copilot suggests the following)
+BuildSubGraph(g, v, subg) <- function(g, v, subg) {
+  # pick a random vertex
+  v <- sample(1:vcount(g), 1)
+  # get the shortest paths from v to all other vertices
+v1 <- neighbors(g, v, mode="all")
+
+# sample one of those
+v2 <- sample(v1, 1)
+
+  # sample one of those
+  v2 <- sample(v2, 1) 
+  
+  # add it to subg
+  subg <- c(subg, v2)
+  
+  return(subg)
+} 
+```
+
+That's not quite right, but not far away from this, which works:
+```{r, IterativeBuild}
+BuildSubGraph <- function(g, subgsize) {
+  size <- 0
+  # label the vertices with our own IDs, that can be copied over
+  V(g)$MyID <- 1:vcount(g)
+  
+  # pick a random vertex to start with (this may go wrong if the graph isn't fully-connected)
+  subg <- sample(1:vcount(g), 1)
+  size <- length(subg)
+  itcount<-1
+  cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+  while  ((size < subgsize)&&(itcount<1e6))
+  {
+    itcount <- itcount+1
+    # pick a random vertex in the graph currently
+    if (length(subg)==1){
+      v<- subg
+    }
+    else
+    {
+      v <- sample(subg,1)
+    }
+    # get the neighbors of v
+    v1 <- neighbors(g, V(g)[v], mode="all")
+    # sample one of those
+    if (length(v1)>0){
+      if (length(v1)==1){
+        v2 <- v1
+      }else{
+         v2 <- sample(v1, 1)
+      }
+      # add it to subg
+      if (!(v2 %in% subg)){
+        cat("\nFocal vertex: ",v,"  nbrs: ",v1,"  sampled: ",v2)
+        subg <- c(subg, v2)
+      } 
+      size <- length(subg)
+    }
+    cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+    
+    # debugging:
+    compcount <- count_components(subgraph(g,vids=subg))
+    if (compcount>1){
+      cat("\n***Error. Disconnected subgraph")
+      tempsub <- subgraph(g,vids=subg)
+      #plot(tempsub,vertex.label=V(tempsub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+     return(tempsub)
+    }
+  }
+  Sub <- subgraph(g,vids=subg)
+  if (size==subgsize){
+    return(Sub)
+  }else{
+    cat("\nSub-graph routine failed: too many iterations")
+    return(NA)
+  }
+}      
+```
+
+Test that function:
+```{r, subtest}
+set.seed(33)
+GraphSize <- 100
+ConnectionProb <- 0.2
+g <- sample_grg(GraphSize, ConnectionProb,coords=TRUE)
+while (count_components(g)>1){
+  g <- sample_grg(GraphSize, ConnectionProb,coords=TRUE)
+}
+plot(g,vertex.label=V(g)$MyID)
+
+SubGraphSize <- 10
+for (i in 1:50){
+  NewSub <- BuildSubGraph(g,SubGraphSize)
+  plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+  cat("\n#components: ",count_components(NewSub))
+  if (count_components(NewSub)>1){i<-5}
+}
+```
+
