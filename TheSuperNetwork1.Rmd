@@ -8,7 +8,7 @@ date: "2023-06-26"
 knitr::opts_chunk$set(echo = TRUE)
 ```
   
-## Working with the Super-Network
+## Working with the Super-Network 
   
   
   
@@ -23,7 +23,8 @@ library(ggplot2)
 
 Load the version of S constructed by Bryan:
 ```{r, loadS}
-load("~/Dropbox/Mac/Desktop/Simple_SIF_network_reactome.RData")
+#load("~/Dropbox/Mac/Desktop/Simple_SIF_network_reactome.RData")
+load("Simple_SIF_network_reactome.RData")
 ```
 
 The network is in a variable called g.subg. It is an 'igraph'
@@ -43,7 +44,7 @@ DN means that it is a 'D'irected network in which th e nodes have 'N'ames.
 There are 11870 nodes and 347970 edges
 
 We will want to take subnetworks with S. 
-Let's explore how to do tjhis using a smaller graph.
+Let's explore how to do this using a smaller graph.
 Here's how to construct a graph from the existing igraph library:
 
 ```{r, testgraphs}
@@ -344,3 +345,12 @@ for (i in 1:50){
 }
 ```
 
+
+Here's a smaller network to practise with. It's based on a single pathway and is stored as an igraph called "alz:
+```{r, SmallerNetwork}
+load("Interconversion_of_nucleotide_di_and_triphosphates.RData")
+summary(alz)
+plot(alz,vertex.label.cex=0.2,edge.arrow.size=0.3)
+```
+
+It contains 551 vertices and 3789 edges
