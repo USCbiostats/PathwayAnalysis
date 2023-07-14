@@ -378,3 +378,4 @@ barplot(relafreq, xlab = "degree",
         ylim = range(pretty(c(0,relafreq))),
         col = "orange")
 ```
+
