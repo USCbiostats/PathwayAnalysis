@@ -63,7 +63,7 @@ plot(rg1,frame.width=3)
 plot(rg1,frame.width=6,label.cex=0.1,layout=layout_nicely)
 ```
 
-This example generates a geometric random graph: n points are chosen randomly and uniformly inside the unit square and pairs of points closer to each other than a predefined distance d are connected by an edge. 
+That example generates a geometric random graph: n points are chosen randomly and uniformly inside the unit square and pairs of points closer to each other than a predefined distance d are connected by an edge. 
 
 It doesn't plot particularly nicely yet.
 
@@ -72,7 +72,7 @@ Manipulating the vertex attributes:
 xcoord <- get.vertex.attribute(rg1,'x')
 ycoord <- get.vertex.attribute(rg1,'y')
 coords <- cbind(xcoord,ycoord)
-plot(rg1,vertex.label.cex=0.5,vertex.layout=5*coords, vertex.size=25, vertex.color="blue",margin=0,asp=0.5)
+plot(rg1,vertex.label.cex=0.5,vertex.layout=5*coords, vertex.size=5, vertex.color="blue",margin=0,asp=0.5)
 V(rg1)$x   # to access the x-coords
 
 ```
@@ -91,9 +91,9 @@ diam
 plot(rg1, layout=coords, vertex.color="cyan",)
 ```
 
-Un-used code that helped me debug (Let's switch to a ring graph for now...)
+Un-used code that helped me debug (in which I switched to a ring graph...)
 ```{r, ring, eval=FALSE}
-#rg1 <- make_ring(n=20)
+rg1 <- make_ring(n=20)
 plot(rg1)
 ```
 
@@ -250,10 +250,10 @@ BuildSubGraph(g, v, subg) <- function(g, v, subg) {
   # pick a random vertex
   v <- sample(1:vcount(g), 1)
   # get the shortest paths from v to all other vertices
-v1 <- neighbors(g, v, mode="all")
+  v1 <- neighbors(g, v, mode="all")
 
-# sample one of those
-v2 <- sample(v1, 1)
+  # sample one of those
+  v2 <- sample(v1, 1)
 
   # sample one of those
   v2 <- sample(v2, 1) 
@@ -345,12 +345,36 @@ for (i in 1:50){
 }
 ```
 
+these all look good at first impression, and appear to be connected. But We should test the above more carefully to make sure it is really working.
 
-Here's a smaller network to practise with. It's based on a single pathway and is stored as an igraph called "alz:
+
+Here's a smaller network to practise with. It comes from Bryan Queme. It's based on a single pathway and is stored as an igraph called "alz:
 ```{r, SmallerNetwork}
 load("Interconversion_of_nucleotide_di_and_triphosphates.RData")
 summary(alz)
 plot(alz,vertex.label.cex=0.2,edge.arrow.size=0.3)
 ```
 
-It contains 551 vertices and 3789 edges
+It contains 551 vertices and 3789 edges. It's hard to see, so let's calculate some summary statistics:
+
+```{r, summarystats}
+get_diameter(alz, directed=F)
+
+deg_alz <- degree(alz)
+# two ways:
+# simple way
+hist(deg_alz,
+     xlab = "degree",
+     ylab = "Frequency",
+     main = "Histogram of alz node degrees, without adjusting breaks and ylim",
+     col = "skyblue")
+
+# a bit more granularity
+alz_table <- table(deg_alz)
+relafreq <- alz_table/sum(alz_table)
+barplot(relafreq, xlab = "degree",
+        ylab = "Relative frequencies",
+        main = "Degree distribution of alz",
+        ylim = range(pretty(c(0,relafreq))),
+        col = "orange")
+```
