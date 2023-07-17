@@ -1,5 +1,5 @@
 # PathwayAnalysis
-A repository for work under P3 of the renewed P01 award.
+A repository for work under Aim 2 of Project 3 of the renewed P01 award.
 
 This currently contains WIP on using local clustering methods on the 'super-network'.
 
