@@ -1165,3 +1165,186 @@ abline(v=ObservedMoransI,col="red",lty=2)
 
 That seems to work nicely.
 
+Now try a version in which we permute everything except the focal node when calculating the p-value for that node
+
+First we need a permutation function that keeps node i fixed
+```{r   FixedPerm, echo=FALSE}
+
+FixedPerm <- function(Vect,FixedIndex){
+  V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
+  W <- append(V,Vect[FixedIndex],after=FixedIndex-1)
+}
+
+CopyNet <- function(ntwk){
+  return (ntwk)
+}
+
+SpatiallyCorrelatedLabels2 <- function(ntwk,SizeOfSemiCompleteComponents,Mean1,Mean2){
+
+  # label the first complete subgraph as N(Mean1,1), and everything else N(Mean2,1).
+  V(ntwk)$MyAttribute <- 0
+  for (i in 1:SizeOfSemiCompleteComponents){
+    V(ntwk)$MyAttribute[i] <- rnorm(1,Mean1,1)
+  } 
+  for (i in (SizeOfSemiCompleteComponents+1):length(V(ntwk))){
+      V(ntwk)$MyAttribute[i] <- rnorm(1,Mean2,1)
+  } 
+  return (ntwk)
+}
+
+
+LisaNetForNodeI <- function(ntwk,IthNode){
+  V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
+  AttributeMean <- mean(V(ntwk)$MyAttribute)
+  # Standardize node labels
+  V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
+  for (i in IthNode:IthNode){
+    L <- 0
+    for (j in 1:length(V(ntwk))){
+      if (distances(ntwk,v=V(ntwk)[i],to=V(ntwk)[j]) == 1){
+        # they are neighbors
+        L <- L + V(ntwk)$StandardizedAttribute[j]
+      }
+    }
+    L <- L * V(ntwk)$StandardizedAttribute[i]
+  }
+  return (L)
+}
+
+set.seed(45)
+SizeOfOurNetwork <- 20
+SubNetworkSize <- 5
+net<-BuildSemiCompleteNetwork(SizeOfOurNetwork,SubNetworkSize)
+DM <- distances(net,v=V(net),to=V(net))  # distance mx
+net<-SpatiallyCorrelatedLabels2(net,SubNetworkSize,2,1)
+V(net)$MyAttribute
+
+plot(net, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net)$MyAttribute,main="original attributes")
+
+#LISAnet <- MyLISA(net)
+#plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
+#vertex.size=0.25*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat),main="LISA values")
+
+# permute the network and re-evaluate
+i <- 1
+V(net)$PermedAttribute <- FixedPerm(V(net)$MyAttribute,i)
+V(net)$PermedAttribute
+#plot(net, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net)$PermedAttribute,main=paste("permuted attributes with node",i," fixed"))
+#LISAnet2 <- MyLISA(net)
+
+net2 <- CopyNet(net)
+plot(net2, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net2)$MyAttribute,main="attributes of permuted network")
+
+net2 <- CopyNet(net)
+NPerms <- 20
+PValue <- rep(0,SizeOfOurNetwork)
+LStat <- rep(0,NPerms)
+for (i in 1:SizeOfOurNetwork)
+{
+  cat("\n",i)
+  # Evaluate Lisa stat for node i
+  for (j in 1:NPerms){
+    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,i)
+    LStat[j] <- LisaNetForNodeI(net2,i)
+  }
+  #boxplot(LStat)
+  abline(h=V(LISAnet)$LISAstat[i],col="red")
+  PValue[i] <- sum(LStat>V(LISAnet)$LISAstat[i])/NPerms
+}
+(PValue)
+#boxplot(PValue[1:25])
+#boxplot(PValue[26:200])
+OverExp <- c(rep(0,25),rep(1,175))
+PlotData <- as.data.frame(cbind(PValue,OverExp))
+
+ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
+  #geom_boxplot()  +
+  geom_violin() +
+   geom_point() +
+   xlab("Group") +
+  ylab("Permutation test P-value") +
+   theme_grey(base_size = 24, base_family = "Times")
+  # + theme(axis.title.x = element_text(face = "italic", colour = "black"))
+  #+ theme(axis.text.x = element_text(family = "Times", size = rel(5)))
+  #geom_violin()
+  #  + scale_y_log10()
+```
+
+
+
+
+***
+&nbsp;
+***
+&nbsp;
+***
+&nbsp;
+***
+&nbsp;
+***
+&nbsp;
+## Other methods
+
+There are a variety of other methods out there to detect clustering. There is no need to pursue these now, but they are worth keeping in mind for future reference.
+
+***
+
+### Old notes: Tango's disease clusters (Tango 1999)
+
+This method is written to look for 'regions' that have too many diseased indivs. 
+
+As such, it does not really fit into our paradigm, because we have no regions. 
+
+We could force it to (possibly?) work if we defined each gene node to be a 'region' in which there was just one potential case. 
+
+It extends the original Tango method, in that it allows the size of the locally clustered region to be a parameter that is searched over.
+
+
+***
+
+### Kulldorf's local scan statistic (Kulldorf 1997)
+
+This method is a local cluster detection algorithm that is implemented in the R package SaTScan.
+
+The basic idea is to model, under the null, the occurrence of 'cases' as, in the simplest case, a Poisson process, and then attempt to detect whether this model, which assumes independence everywhere, fits. 
+
+If it does not fit, clustering is assumed to be occurring. 
+
+It is then extended to other 'null' measures as well, to account for uneven distributions of potential cases (I think), but I don't think we would need those ideas here.
+
+The method originally tried to detected circular clusters of 'alike' values,but has been extended to non-circular shapes. Ideas like this would presumably be sensible if we used local neighborhoods rather than 'shapes'.
+
+An important characteristic of this method is that when the null hypothesisis rejected it indicates the specific area of the map that causes the rejection.
+
+Again, though, it is a region-based method, so not ideal for networks
+
+
+***
+
+### Besag and Newell's method (Besag et al. 1991)
+
+This is a local cluster detection method that assumes the landscape is divided into regions. 
+
+The paper talks about why the assumptions of Moran's-I might be invalid even when disease risk is $p$ for everyone and all are independent. 
+
+Essentially, if the sizes of the regions varies, as it will, then the variance of the incidence rates will also vary from region to region. 
+
+This actually induces spatial correlation in the disease rates even when the disease rate is constant from individual to individual. This won't be a problem in our context, because there is one potential 'case' in each region, so all 'disease' rates have the same distribution.
+
+
+***
+
+### Arbitrarily shaped multiple spatial cluster detection for case event data (Dematte?? et al. 2007)
+
+This paper proposes a method for spatial cluster detection of case event data. 
+
+Here, each case has a unique location in space.
+
+Essentially, they look at a path that includes (just) all cases, and look at whether the average distance between points in this path is unusually low (suggesting the existence of clusters.)
+
+**These ideas look like they might, with some thought, generalize to our setting. The network would just impose constraints on how the path is constructed.**
+
+The paper also contains a nice (brief) overview of methods, referencing several recently proposed methods.
+
+
+***
