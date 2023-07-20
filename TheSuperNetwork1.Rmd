@@ -32,7 +32,7 @@ We'll rename it to S:
 ```{r, rename}
 S <- g.subg
 rm(g.subg)
-head(S)
+#head(S)
 ```
 
 The summary of S gives us a few useful bits of info:
@@ -337,7 +337,7 @@ while (count_components(g)>1){
 plot(g,vertex.label=V(g)$MyID)
 
 SubGraphSize <- 10
-for (i in 1:50){
+for (i in 1:5){
   NewSub <- BuildSubGraph(g,SubGraphSize)
   plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
   cat("\n#components: ",count_components(NewSub))
@@ -400,7 +400,7 @@ Example 1:  pathview (https://bioconductor.org/packages/release/bioc/html/pathvi
 Vignettes are available:
 ```{r, pathviewvignettes, eval=TRUE}
 library(pathview)
-browseVignettes("pathview")
+#browseVignettes("pathview")
 ```
 
 Downloading KEGG data:
