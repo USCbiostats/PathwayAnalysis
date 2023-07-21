@@ -1120,6 +1120,8 @@ SpatiallyCorrelatedLabels1 <- function(ntwk,SizeOfSemiCompleteComponents){
   return (ntwk)
 }
 
+
+  
   #cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$MyAttribute),"    expectation= ",-1/(length(V(newnet)$MyAttribute)-1))
   
   # Does it look significant?
