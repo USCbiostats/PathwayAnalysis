@@ -486,10 +486,9 @@ library(paxtoolsr)
 library(rJava)
 
 # Example of merging two files
-file1 <- system.file("extdata", "raf_map_kinase_cascade_reactome.owl", package = "paxtoolsr")
-file2 <- system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr")
-
-mergedFile <- mergeBiopax(file1, file2)
+#file1 <- system.file("extdata", "raf_map_kinase_cascade_reactome.owl", package = "paxtoolsr")
+#file2 <- system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr")
+#mergedFile <- mergeBiopax(file1, file2)
 
 ```
 
@@ -512,11 +511,11 @@ searchResults <- searchPc(q = "glycolysis", type = "pathway")
 Example of visualization:
 ```{r, eval=FALSE, warning=FALSE, message=FALSE}
 library(igraph)
-sif <- toSif(system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr"))
+#sif <- toSif(system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr"))
 
 # graph.edgelist requires a matrix
-g <- graph.edgelist(as.matrix(sif[, c(1, 3)]), directed = FALSE)
-plot(g, layout = layout.fruchterman.reingold)
+#g <- graph.edgelist(as.matrix(sif[, c(1, 3)]), directed = FALSE)
+#plot(g, layout = layout.fruchterman.reingold)
 
 #print_all(g)
 
