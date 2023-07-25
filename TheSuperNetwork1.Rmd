@@ -670,16 +670,17 @@ MoransI <- function(DistanceMx, NodeAttributes){
   AttributeMean <- mean(NodeAttributes)
   #cat("\nAttribute mean= ",AttributeMean)
   for (i in 1:NoOfNodes){
+    # the next line calculates the denominator
     DenomSum <- DenomSum + (NodeAttributes[i]-AttributeMean) * (NodeAttributes[i]-AttributeMean) 
+    # and now we calculate the other bits
     for (j in 1:NoOfNodes){
       if ( i != j){
         ThisDist <- DistanceMx[i,j]
         if (ThisDist == 1) # neighbors only
         {
-          WeightSum <- WeightSum + ThisDist
-          MoranSum <- ThisDist * (NodeAttributes[i]-AttributeMean) * (NodeAttributes[j]-AttributeMean)
+          WeightSum <- WeightSum + ThisDist # we use a weight of 1 if they are neighbors and 0 otherwise
+          MoranSum <- MoranSum + ThisDist * (NodeAttributes[i]-AttributeMean) * (NodeAttributes[j]-AttributeMean)
         }
-        # V(net)$MyAttribute
       }
     }
   }
