@@ -430,7 +430,7 @@ node.data=node.info(gR1)
 
 Here's another existing library
 GraphNEL is the graph representation class (https://www.rdocumentation.org/packages/graph/versions/1.50.0/topics/graphNEL-class)
-```{r, eval=TRUE, warning=FALSE, message=FALSE}
+```{r, eval=FALSE, warning=FALSE, message=FALSE}
 if(!require('graph')) {
   install.packages('graph')
   library('graph')
@@ -925,17 +925,14 @@ Assigning spatially correlated node labels
 ```{r, Correlated, echo=FALSE}
 SpatiallyCorrelatedLabels <- function(ntwk,CentralNode){
 
-  # label it and all its neighbors 1, and everything else 0.
+  # label it and all its neighbors 1, and everything else Normal(0,1).
   V(ntwk)$MyAttribute <- rnorm(length(V(ntwk)),0,1)
   V(ntwk)$MyAttribute[CentralNode] <- 1
   for (i in 1:length(V(ntwk))){
-    #if (distances(ntwk,CentralNode,i) == 1){
-    #  V(ntwk)$MyAttribute[i] <- 1
-    #}
-    if (i != CentralNode){
-      V(ntwk)$MyAttribute[i] <- 1/distances(ntwk,CentralNode,i)
+    if (distances(ntwk,CentralNode,i) == 1){
+      V(ntwk)$MyAttribute[i] <- 1
     }
-  } 
+    }
   return (ntwk)
 }
 
