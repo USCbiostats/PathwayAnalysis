@@ -8,3 +8,5 @@ For now, the file SuperNetwork.Rmd walks you through the beginnings of what is g
 For details of the methods we hope to implement see the files "LocalClusteringThoeryPrimer.xxx"
 
 The file Simple_SIF_network_reactome.RData contains our current version of the 'super-network', S.
+
+The file Interconversion_of_nucleotide_di_and_triphosphates.RData contains a smaller (Alzheimer's network) that we might use for initial testing.
