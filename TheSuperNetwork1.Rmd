@@ -1214,18 +1214,22 @@ SpatiallyCorrelatedLabels2 <- function(ntwk,SizeOfSemiCompleteComponents,Mean1,M
   return (ntwk)
 }
 
+# Local moran's I (LISA) calculates a statistic for each node in the graph, indicating whether that node appears
+# to be in a region of local clustering for the attribute (Pnode label) of interest.
+# The following function calacluates the LISA stat for 'IthNode'.
+# The statistic begins by subtracting the mean attrubute value from all attributes
 
 LisaNetForNodeI <- function(ntwk,IthNode){
   V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
   AttributeMean <- mean(V(ntwk)$MyAttribute)
-  # Standardize node labels
+  # Standardize node labels - subtract the mean attrubute value from all attributes
   V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
-  for (i in IthNode:IthNode){
+  for (i in IthNode:IthNode){  # This loop can be removed. It's a legacy of code I borrowed from a Morans-I function
     L <- 0
     for (j in 1:length(V(ntwk))){
       if (distances(ntwk,v=V(ntwk)[i],to=V(ntwk)[j]) == 1){
-        # they are neighbors
-        L <- L + V(ntwk)$StandardizedAttribute[j]
+        # they are neighbors - for now we only consider directly adjacent nodes
+        L <- L + V(ntwk)$StandardizedAttribute[j] # there would also be a weight term here if we wanted a more general definition of 'neighbor'
       }
     }
     L <- L * V(ntwk)$StandardizedAttribute[i]
