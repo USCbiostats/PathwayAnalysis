@@ -1299,7 +1299,6 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
 FixedPerm <- function(Vect,FixedIndex){
   V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
   W <- append(V,Vect[FixedIndex],after=FixedIndex-1)
-  return (W)
 }
 
 CopyNet <- function(ntwk){
@@ -1323,21 +1322,25 @@ SpatiallyCorrelatedLabels2 <- function(ntwk,SizeOfSemiCompleteComponents,Mean1,M
 # to be in a region of local clustering for the attribute (Pnode label) of interest.
 # The following function calacluates the LISA stat for 'IthNode'.
 # The statistic begins by subtracting the mean attrubute value from all attributes
-
-LisaNetForNodes <- function(ntwk){
+NeighborsLists <- replicate(length(V(net2)), c(), simplify = FALSE)
+for(i in 1:length(E(net2))){
+  a=as.integer(get.edgelist(net2)[i,1])
+  b=as.integer(get.edgelist(net2)[i,2])
+  NeighborsLists[[a]]<-c(NeighborsLists[[a]],b)
+  NeighborsLists[[b]]<-c(NeighborsLists[[b]],a)
+}
+LisaNetForNodeI <- function(ntwk,IthNode){
   V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
   AttributeMean <- mean(V(ntwk)$MyAttribute)
   # Standardize node labels - subtract the mean attrubute value from all attributes
   V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
-  L <- rep(0,length(V(ntwk)))
-  #NeighborsLists <- replicate(length(V(ntwk)), c(), simplify = FALSE)
-  for(i in 1:length(E(ntwk))){
-    a=as.integer(get.edgelist(ntwk)[i,1])
-    b=as.integer(get.edgelist(ntwk)[i,2])
-    addvalue=V(ntwk)$StandardizedAttribute[a] * V(ntwk)$StandardizedAttribute[b]
-    L[a]=L[a]+addvalue
-    L[b]=L[b]+addvalue
+  L <- 0
+  for (j in NeighborsLists[[IthNode]]){
+      # they are neighbors - for now we only consider directly adjacent nodes
+    L <- L + V(ntwk)$StandardizedAttribute[j] # there would also be a weight term here if we wanted a more general definition of 'neighbor'
   }
+  L <- L * V(ntwk)$StandardizedAttribute[IthNode]
+  
   return (L)
 }
 
@@ -1368,20 +1371,24 @@ plot(net2, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net2)$M
 net2 <- CopyNet(net)
 NPerms <- 20
 PValue <- rep(0,SizeOfOurNetwork)
-LStat <- LisaNetForNodes(net2)
-f <- function(i){
-  cat("\n",i)
-  # Evaluate Lisa stat for node i
-  for (j in 1:NPerms){
-    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,i)
-  }
-  #boxplot(LStat)
-  abline(h=V(LISAnet)$LISAstat[i],col="red")
-  PValue[i] <- sum(LStat>V(LISAnet)$LISAstat[i])/NPerms
+LStat <- rep(0,NPerms)
+
+f <- function(j){
+    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,index)
+    LStat[j] <- LisaNetForNodeI(net2,index)
 }
-PValue=mclapply(1:SizeOfOurNetwork, f)
-PValue=unlist(PValue)
+for (index in 1:SizeOfOurNetwork)
+{
+  cat("\n",index)
+  # Evaluate Lisa stat for node i
+  LStat=mclapply(1:NPerms, f)
+  LStat=unlist(LStat)
+  #boxplot(LStat)
+  abline(h=V(LISAnet)$LISAstat[index],col="red")
+  PValue[index] <- sum(LStat>V(LISAnet)$LISAstat[index])/NPerms
+}
 (PValue)
+
 #boxplot(PValue[1:25])
 #boxplot(PValue[26:200])
 OverExp <- c(rep(0,25),rep(1,175))
@@ -1399,6 +1406,8 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
   #geom_violin()
   #  + scale_y_log10()
 ```
+
+
 
 
 ***
