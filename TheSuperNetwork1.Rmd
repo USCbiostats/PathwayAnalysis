@@ -1294,6 +1294,112 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
 
 
 
+```{r   FixedPerm, echo=FALSE}
+
+FixedPerm <- function(Vect,FixedIndex){
+  V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
+  W <- append(V,Vect[FixedIndex],after=FixedIndex-1)
+  return (W)
+}
+
+CopyNet <- function(ntwk){
+  return (ntwk)
+}
+
+SpatiallyCorrelatedLabels2 <- function(ntwk,SizeOfSemiCompleteComponents,Mean1,Mean2){
+
+  # label the first complete subgraph as N(Mean1,1), and everything else N(Mean2,1).
+  V(ntwk)$MyAttribute <- 0
+  for (i in 1:SizeOfSemiCompleteComponents){
+    V(ntwk)$MyAttribute[i] <- rnorm(1,Mean1,1)
+  } 
+  for (i in (SizeOfSemiCompleteComponents+1):length(V(ntwk))){
+      V(ntwk)$MyAttribute[i] <- rnorm(1,Mean2,1)
+  } 
+  return (ntwk)
+}
+
+# Local moran's I (LISA) calculates a statistic for each node in the graph, indicating whether that node appears
+# to be in a region of local clustering for the attribute (Pnode label) of interest.
+# The following function calacluates the LISA stat for 'IthNode'.
+# The statistic begins by subtracting the mean attrubute value from all attributes
+
+LisaNetForNodes <- function(ntwk){
+  V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
+  AttributeMean <- mean(V(ntwk)$MyAttribute)
+  # Standardize node labels - subtract the mean attrubute value from all attributes
+  V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
+  L <- rep(0,length(V(ntwk)))
+  #NeighborsLists <- replicate(length(V(ntwk)), c(), simplify = FALSE)
+  for(i in 1:length(E(ntwk))){
+    a=as.integer(get.edgelist(ntwk)[i,1])
+    b=as.integer(get.edgelist(ntwk)[i,2])
+    addvalue=V(ntwk)$StandardizedAttribute[a] * V(ntwk)$StandardizedAttribute[b]
+    L[a]=L[a]+addvalue
+    L[b]=L[b]+addvalue
+  }
+  return (L)
+}
+
+set.seed(45)
+SizeOfOurNetwork <- 20
+SubNetworkSize <- 5
+net<-BuildSemiCompleteNetwork(SizeOfOurNetwork,SubNetworkSize)
+DM <- distances(net,v=V(net),to=V(net))  # distance mx
+net<-SpatiallyCorrelatedLabels2(net,SubNetworkSize,2,1)
+V(net)$MyAttribute
+
+plot(net, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net)$MyAttribute,main="original attributes")
+
+#LISAnet <- MyLISA(net)
+#plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
+#vertex.size=0.25*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat),main="LISA values")
+
+# permute the network and re-evaluate
+i <- 1
+V(net)$PermedAttribute <- FixedPerm(V(net)$MyAttribute,i)
+V(net)$PermedAttribute
+#plot(net, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net)$PermedAttribute,main=paste("permuted attributes with node",i," fixed"))
+#LISAnet2 <- MyLISA(net)
+
+net2 <- CopyNet(net)
+plot(net2, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net2)$MyAttribute,main="attributes of permuted network")
+
+net2 <- CopyNet(net)
+NPerms <- 20
+PValue <- rep(0,SizeOfOurNetwork)
+LStat <- LisaNetForNodes(net2)
+f <- function(i){
+  cat("\n",i)
+  # Evaluate Lisa stat for node i
+  for (j in 1:NPerms){
+    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,i)
+  }
+  #boxplot(LStat)
+  abline(h=V(LISAnet)$LISAstat[i],col="red")
+  PValue[i] <- sum(LStat>V(LISAnet)$LISAstat[i])/NPerms
+}
+PValue=mclapply(1:SizeOfOurNetwork, f)
+PValue=unlist(PValue)
+(PValue)
+#boxplot(PValue[1:25])
+#boxplot(PValue[26:200])
+OverExp <- c(rep(0,25),rep(1,175))
+PlotData <- as.data.frame(cbind(PValue,OverExp))
+
+ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
+  #geom_boxplot()  +
+  geom_violin() +
+   geom_point() +
+   xlab("Group") +
+  ylab("Permutation test P-value") +
+   theme_grey(base_size = 24, base_family = "Times")
+  # + theme(axis.title.x = element_text(face = "italic", colour = "black"))
+  #+ theme(axis.text.x = element_text(family = "Times", size = rel(5)))
+  #geom_violin()
+  #  + scale_y_log10()
+```
+
 
 ***
 &nbsp;
