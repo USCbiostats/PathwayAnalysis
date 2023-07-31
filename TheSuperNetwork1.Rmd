@@ -42,7 +42,7 @@ summary(S)
 DN means that it is a 'D'irected network in which th e nodes have 'N'ames.
 There are 11870 nodes and 347970 edges
 
-We will want to take subnetworks with S. 
+We will want to use subnetworks of S. 
 Let's explore how to do this using a smaller graph.
 Here's how to construct a graph from the existing igraph library:
 
@@ -138,6 +138,7 @@ LowDegreeVertices <- which(degree(S)<2)
 (length(LowDegreeVertices))
 ```
 
+And then pick a node of low degree to deifne the subgraph around
 ```{r }
 sub <- as.numeric(DM[LowDegreeVertices[1],]<4.5)
 subIDs <- which(sub==1)
@@ -823,9 +824,9 @@ hw_p <- ggplot(dfsm, aes(x = Smooth, y = MoransI)) +
 (hw_p)
 ```
 
-They don't actually look very different! 
-I would have expected to see more of a difference.
-Let's try a better way of producing correlated node labels.
+Now that we've corrected the code for MOran's-I, these look quite different 
+
+Let's try another way of producing correlated node labels.
 
 ***
 
@@ -914,7 +915,7 @@ cat("\n time taken= ", end_time - start_time)
 
 ```
 
-That still didn't seem to show much difference! So let's try something else. 
+These don't seem to show much difference! So let's try something else. 
 We pick a focal node at random and label it and all it's neighbors with a 1,
 whereas everything else is labeled rnorm(0,1). That should show a difference.
 First define the function to create the labels:
@@ -948,11 +949,11 @@ hist(Results2,breaks=20,col="grey")
 abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
 ```
 
-Still not showing a great deal of difference, although it did for some earlier test cases. 
-Here, the focal node only has one neighbor. 
+Here we seem to see a reasonable amount of difference.
+In thisd example, the focal node only has one neighbor. 
 It will probably do better on a more connected graph. We should explore that.
 
-Lets look at local measures:
+Let's look at local measures:
 
 &nbsp;
 
@@ -1262,7 +1263,7 @@ PValue <- rep(0,SizeOfOurNetwork)
 LStat <- rep(0,NPerms)
 for (i in 1:SizeOfOurNetwork)
 {
-  cat("\n",i)
+  cat("\nPerm",i)
   # Evaluate Lisa stat for node i
   for (j in 1:NPerms){
     V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,i)
@@ -1293,7 +1294,7 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
 
 Here's a new version of the permutation test, written by Mingzhi: 
 
-```{r   FixedPerm, echo=FALSE}
+```{r   NewFixedPerm, echo=FALSE}
 
 FixedPerm <- function(Vect,FixedIndex){
   V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
@@ -1394,16 +1395,11 @@ OverExp <- c(rep(0,25),rep(1,175))
 PlotData <- as.data.frame(cbind(PValue,OverExp))
 
 ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
-  #geom_boxplot()  +
   geom_violin() +
    geom_point() +
    xlab("Group") +
   ylab("Permutation test P-value") +
    theme_grey(base_size = 24, base_family = "Times")
-  # + theme(axis.title.x = element_text(face = "italic", colour = "black"))
-  #+ theme(axis.text.x = element_text(family = "Times", size = rel(5)))
-  #geom_violin()
-  #  + scale_y_log10()
 ```
 
 
