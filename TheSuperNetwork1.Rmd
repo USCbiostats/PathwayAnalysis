@@ -1291,7 +1291,7 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
   #  + scale_y_log10()
 ```
 
-
+Here's a new version of the permutation test, written by Mingzhi: 
 
 ```{r   FixedPerm, echo=FALSE}
 
