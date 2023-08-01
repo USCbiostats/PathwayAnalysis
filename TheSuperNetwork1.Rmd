@@ -14,10 +14,23 @@ knitr::opts_chunk$set(echo = TRUE)
 In this doc we will explore working with the super-network, S, 
 the mother of all networks. (More formally, the largest connected sub-graph in the union of all gene networks from KEGG.)
 
+In this revision, we strip out all the things we are not using. (Older versions can now be found in
+the Archive folder.)
+
 Load whatever libraries we need:
-```{r, libs}
+```{r, load_libraries}
 library(igraph)
 library(ggplot2)
+library("RColorBrewer") 
+library("png")
+library("ggraph")
+library("networkD3")
+library("animation")
+library("maps")
+library("geosphere")
+library("RColorBrewer")
+library(future.apply)
+library(parallel)
 ```
 
 Load the version of S constructed by Bryan:
@@ -42,14 +55,7 @@ summary(S)
 DN means that it is a 'D'irected network in which th e nodes have 'N'ames.
 There are 11870 nodes and 347970 edges
 
-We will want to use subnetworks of S. 
-Let's explore how to do this using a smaller graph.
-Here's how to construct a graph from the existing igraph library:
 
-```{r, testgraphs}
-g <- make_graph('Zachary')
-plot(g)
-```
 
 Here's how to generate a random graph
 (taken from https://r.igraph.org/articles/igraph.html).
@@ -64,7 +70,6 @@ plot(rg1,frame.width=6,label.cex=0.1,layout=layout_nicely)
 
 That example generates a geometric random graph: n points are chosen randomly and uniformly inside the unit square and pairs of points closer to each other than a predefined distance d are connected by an edge. 
 
-It doesn't plot particularly nicely yet.
 
 Manipulating the vertex attributes:
 ```{r, atrributes}
@@ -78,81 +83,10 @@ V(rg1)$x   # to access the x-coords
 
 
 
-Let's aim to construct a subgraph of all vertices within 2 steps of vertex 3. What pre-defined functions might be useful here?
+Let's aim to construct a sub-graph of all vertices within 2 steps of a given vertex 
+We try it on the super-network S.
 
-Edges, vertices and entire mx can be accessed as follows: (nice tutorial at https://kateto.net/wp-content/uploads/2016/01/NetSciX_2016_Workshop.pdf)
-```{r, eval=TRUE}
-E(rg1)
-V(rg1)
-#net[]
-diam <- get_diameter(rg1, directed=F)
-diam
-plot(rg1, layout=coords, vertex.color="cyan",)
-```
-
-Un-used code that helped me debug (in which I switched to a ring graph...)
-```{r, ring, eval=FALSE}
-rg1 <- make_ring(n=20)
-plot(rg1)
-```
-
-
-It is simple to calculate distances between nodes:
-```{r, dist}
-DM <- distances(rg1,v=V(rg1),to=V(rg1))
-```
-
-Create a sub-graph of all vertices within 2 of vertex 3 
-(carrying over the edges that connect them).
-I want to keep track of the original vertex IDs, so I do that 
-manually (they are lost otherwise):
-
-```{r, subgraph}
-sub <- as.numeric(DM[3,]<2.5)
-subIDs <- which(sub==1)
-V(rg1)$MyID <- 1:vcount(rg1)
-rsub1 <- subgraph(rg1,vids=subIDs)
-plot(rsub1,vertex.size=1)
-plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID)
-```
-
-
-Let's try it on the super-network S:
-```{r, firsttest}
-DM <- distances(S,v=V(S),to=V(S))
-sub <- as.numeric(DM[3,]<1.5)
-subIDs <- which(sub==1)
-V(S)$MyID <- 1:vcount(S)
-rsub1 <- subgraph(S,vids=subIDs)
-plot(rsub1,vertex.size=1)
-plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID)
-```
-
-There are over 4000 vertices within 2 steps of vertex 3, which is a bit of a problem for plotting!
-There are 300 nodes that are neighbors of vertex 10.
-
-Let's find a better vertex to work with
-We look at the degree of nodes to help
-```{r, degree}
-LowDegreeVertices <- which(degree(S)<2)
-(length(LowDegreeVertices))
-```
-
-And then pick a node of low degree to deifne the subgraph around
-```{r }
-sub <- as.numeric(DM[LowDegreeVertices[1],]<4.5)
-subIDs <- which(sub==1)
-V(S)$MyID <- 1:vcount(S)
-rsub1 <- subgraph(S,vids=subIDs)
-plot(rsub1,vertex.size=1)
-plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$MyID,vertex.label.cex=0.5,edge.arrow.size=0.1)
-plot(rsub1,vertex.size=1,vertex.label=V(rsub1)$names,vertex.label.cex=0.5,edge.arrow.size=0.1)
-
-
-```
-
-
-Let's write a function to pull out a subgraph of all vertices within 'NeighborDist'
+First we write a function to pull out a sub-graph of all vertices within 'NeighborDist'
 of vertex FocalVertex (the index of the focal vertex) on graph 'Network'
 ```{r, NbrFn}
 NeighborSubgraph <- function(Network,FocalVertex,NeighborDist)
@@ -170,13 +104,11 @@ And a function to pick low degree vertices, which might be good focal vertices:
 ```{r, lowdegreefn}
 LowDegreeVertices <- function(Network,MaxDegree)
 {
-  IDs <- which(degree(Network)<=MaxDegree)
+  IDs <- which(igraph::degree(Network)<=MaxDegree)
   #IDs <- which(LDVs==1)
   return (IDs)
 }
 ```
-
-
 
 Test it:
 ```{r , subgraphtest1}
@@ -201,74 +133,15 @@ plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3
 ```
 
 
-Next, let's try defining a subgraph in a different way.
-We will start with one vertex and then iterate the following until the graph is big enough
-1. Pick a vertex in the subgraph uniformly at random
+Next, let's try defining a subgraph in a different way, which may create sub-graphs that are a bit
+more like single gene pathways.
+Specifically, we start with one vertex and then iterate the following until the graph is big enough
+1. Pick a vertex in the sub-graph uniformly at random
 2. Find a neighbor of that vertex: add it if it is not already in the graph; else go back to 1.
-We include all edges from the original graoh that connect any two vertices in our subgraph.
+We include all edges from the original graph that connect any two vertices in our subgraph.
 (This is handled automatically by the library's subgraph function.)
 
-I wanted to explore copilot, so here's what happened when I did that:
-Here's some code suggested by Copilot (I gave it the first two lines)
-```{r, copilot_explore1, eval=FALSE}
-g <- sample_grg(50, 0.2,coords=TRUE)
-subg <- NA
-plot(g)
 
-# pick a random vertex  (I gave this to Copilot, it suggested the following 7 lines)
-v <- sample(1:vcount(g), 1)
-# get the shortest paths from v to all other vertices
-sp <- get.shortest.paths(g, v, mode="out")
-# get the indices of the vertices that are at distance 1 from v
-v2 <- which(sp[[1]]==1)
-# sample one of those
-v2 <- sample(v2, 1)
-
-# add it to subg
-subg <- c(subg, v2)
-```
-
-That doesn't quite work, but suggests this:
-
-```{r, copilot_refinement1, v2}
-set.seed(33)
-g <- sample_grg(50, 0.2,coords=TRUE)
-subg <- NA
-plot(g)
-
-v <- sample(1:vcount(g), 1)
-# get the neighbors of v 
-v1 <- neighbors(g, v, mode="all")
-
-# sample one of those
-v2 <- sample(v1, 1)
-
-# add it to subg
-subg <- c(subg, v2)
-```
-
-```{r, random_subgraph, eval=FALSE}
-# Now wrap this up in a function (given this comment, copilot suggests the following)
-BuildSubGraph(g, v, subg) <- function(g, v, subg) {
-  # pick a random vertex
-  v <- sample(1:vcount(g), 1)
-  # get the shortest paths from v to all other vertices
-  v1 <- neighbors(g, v, mode="all")
-
-  # sample one of those
-  v2 <- sample(v1, 1)
-
-  # sample one of those
-  v2 <- sample(v2, 1) 
-  
-  # add it to subg
-  subg <- c(subg, v2)
-  
-  return(subg)
-} 
-```
-
-That's not quite right, but not far away from this manually written version, which works:
 ```{r, IterativeBuildOfSubgraph}
 BuildSubGraph <- function(g, subgsize) {
   size <- 0
@@ -351,7 +224,7 @@ for (i in 1:5){
 These all look good at first impression, and appear to be connected. But we should test the above more carefully to make sure it is really working.
 
 
-Here's a smaller network to practise with. It comes from Bryan Queme. It's based on a single pathway and is stored as an igraph called "alz"
+Here's a smaller network to practice with. It comes from Bryan Queme. It's based on a single pathway and is stored as an igraph called "alz"
 ```{r, SmallerNetwork}
 load("Interconversion_of_nucleotide_di_and_triphosphates.RData")
 summary(alz)
@@ -363,7 +236,7 @@ It contains 551 vertices and 3789 edges. It's hard to see, so let's calculate so
 ```{r, summarystats}
 get_diameter(alz, directed=F)
 
-deg_alz <- degree(alz)
+deg_alz <- igraph::degree(alz)
 # two ways:
 # simple way
 hist(deg_alz,
@@ -381,174 +254,14 @@ barplot(relafreq, xlab = "degree",
         ylim = range(pretty(c(0,relafreq))),
         col = "orange")
 ```
-
-
-Here's some code I wrote some time ago that begins to implement some of the cluster-detection
-methods we are hoping to use in our work.
-Some of this may be redundant with some of the code above (i.e., there may be overlap)
-
-
-### Preliminary Data!
-
-
-## Existing R packages for pathway handling and visualization
-
-Note that there are a wide variety of packages out there for handling networks. 
-
-Example 1:  pathview (https://bioconductor.org/packages/release/bioc/html/pathview.html)
-
-```{r pathview, message=FALSE, warnings=FALSE,eval=FALSE, echo=FALSE}
-#if (!require("BiocManager", quietly = TRUE))
-#    install.packages("BiocManager")
-#BiocManager::install("pathview")
-
-```
-
-Vignettes are available:
-```{r, pathviewvignettes, eval=TRUE}
-library(pathview)
-#browseVignettes("pathview")
-```
-
-Downloading KEGG data:
-```{r KEGGdownload, eval=TRUE}
-kd <- download.kegg(pathway.id = "00010", species = "hsa", kegg.dir = ".",
-file.type=c("xml", "png"))
-```
-
-
-The components of downloaded pathway are as follows:
-```{r components, eval=TRUE}
-xml.file=system.file("extdata", "hsa04110.xml", package = "pathview")
-node.data=node.info(xml.file)
-names(node.data)
-#or parse into a graph object, then extract node info
-gR1=pathview:::parseKGML2Graph2(xml.file, genesOnly=FALSE, expand=FALSE, split.group=FALSE)
-node.data=node.info(gR1)
-(gR1)
-```
-
-Here's another existing library
-GraphNEL is the graph representation class (https://www.rdocumentation.org/packages/graph/versions/1.50.0/topics/graphNEL-class)
-```{r GraphNEL, eval=TRUE, warning=FALSE, message=FALSE}
-if(!require('graph')) {
-  install.packages('graph')
-  library('graph')
-}
-```
-
-Let's look at the downloaded pathway
-So for our example, gR1, we have
-```{r looksee, eval=FALSE}
-#edges(gR1)
-plot(gR1)
-
-xml.file=system.file("extdata", "hsa04110.xml", package = "pathview")
-gR1=pathview:::parseKGML2Graph2(xml.file, genesOnly=FALSE, expand=FALSE, split.group=FALSE)
-#pathview(gR1)
-#pv.out <- pathview(gene.data = gse16873.d[, 1], pathway.id = demo.paths$sel.paths[i], species = "hsa", out.suffix = "gse16873", kegg.native = F, sign.pos = demo.paths$spos[i])
-```
-
-Networks are stored as graph networks (collections of "edges" and "nodes"). It's easy enough to create our own graphs, as may be needed for methods testing. Here's an example of a directed network:
-```{r DIYgraphs, eval=TRUE}
-Nodes <- 6
-set.seed(125)
-Verts <- LETTERS[1:Nodes]
-edL2 <- vector("list", length=Nodes)
-names(edL2) <- Verts
-MyWeights <- rep(1,2)
-for(i in 1:Nodes){
-  Connecteds <-sample(Verts,size=2,replace=FALSE)
-  edL2[[i]] <- list(edges=Connecteds,weights=MyWeights)
-    #edL[[i]] <- list(sample(c(0,1),8,replace=TRUE),weights=(runif(8)))
-}
-gR2 <- graphNEL(nodes=Verts, edgeL=edL2,edgemode='directed')
-edges(gR2)
-#edgeWeights(gR)
-plot(gR2)
-```
-
-
-***
-
-&nbsp;
-
-Here's another existing library : paxtoolsr.
-Install via:
-```{r paxtools , eval=FALSE, warning=FALSE, message=FALSE}
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install("paxtoolsr")
-```
-
-Vignettes found at: https://www.bioconductor.org/packages/devel/bioc/vignettes/paxtoolsr/inst/doc/using_paxtoolsr.html
-```{r paxvignette, eval=FALSE, warning=FALSE, message=FALSE}
-library(paxtoolsr)
-library(rJava)
-
-# Example of merging two files
-#file1 <- system.file("extdata", "raf_map_kinase_cascade_reactome.owl", package = "paxtoolsr")
-#file2 <- system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr")
-#mergedFile <- mergeBiopax(file1, file2)
-
-```
-
-
-***
-
-&nbsp;
-
-From vignette:
-
-Searching Pathway Commons
-
-Networks can also be loaded using Pathway Commons rather than from local BioPAX files. First, we show how Pathway Commons can be searched.
-
-Search Pathway Commons for 'glycolysis'-related pathways:
-```{r, eval=FALSE, warning=FALSE, message=FALSE}
-searchResults <- searchPc(q = "glycolysis", type = "pathway")
-```
-
-Example of visualization:
-```{r visualex, eval=FALSE, warning=FALSE, message=FALSE}
-library(igraph)
-#sif <- toSif(system.file("extdata", "biopax3-short-metabolic-pathway.owl", package = "paxtoolsr"))
-
-# graph.edgelist requires a matrix
-#g <- graph.edgelist(as.matrix(sif[, c(1, 3)]), directed = FALSE)
-#plot(g, layout = layout.fruchterman.reingold)
-
-#print_all(g)
-
-```
-
-
-These graphs are "igraphs", from the R library of the same name.
-We will use iGraph structures for this work.
-
 ***
 &nbsp;
 
-
-## Simple example of Local Moran's I and permutation-based testing
+### Methods - Simple example of Local Moran's I and permutation-based testing
 
 Now we begin to implement some of the methodology.
 
-```{r   load_libraries, echo=FALSE}
-library("RColorBrewer") 
-library("png")
-library("ggraph")
-library("networkD3")
-library("animation")
-library("maps")
-library("ggplot2")
-library("geosphere")
-library("RColorBrewer")
-library(future.apply)
-library(parallel)
-library(igraph)
-```
-
-We will practise with small random graphs, in which each possible edge 
+We will practice with small random graphs, in which each possible edge 
 occurs with probability 'EdgeProb'...
 ```{r, globals}
 SizeOfOurNetwork <- 20
@@ -557,7 +270,6 @@ EdgeProb <- 0.15
 
 We build another random network of 20 genes/nodes
 ```{r network, echo=FALSE}
-
 RandomEdges <- function (x){
   x <- runif(1)<EdgeProb
   return (x)
@@ -594,14 +306,12 @@ set.seed(593)
 
 oldnet <- BuildRandomNetwork(SizeOfOurNetwork)
 class(oldnet)
-#net 
 
-plot(oldnet) 
-
-# there are all sorts of pretty options
+# plot it
+l <- layout_with_fr(oldnet)
 plot(oldnet, edge.arrow.size=.2, edge.curved=0,
      vertex.color="red", vertex.frame.color="white",
-     vertex.label.cex=.7,vertex.size=20) 
+     vertex.label.cex=.7,vertex.size=2+igraph::degree(oldnet)) 
 ```
 
 We can do fancy things like letting the node size vary by degree.
