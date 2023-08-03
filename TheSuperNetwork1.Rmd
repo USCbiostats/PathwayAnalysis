@@ -133,12 +133,12 @@ plot(SubNet,vertex.label=V(SubNet)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3
 
 
 Next, let's try defining a subgraph in a different way, which may create sub-graphs that are a bit
-more like single gene pathways.
+more like a piece of S.
 Specifically, we start with one vertex and then iterate the following until the graph is big enough
 1. Pick a vertex in the sub-graph uniformly at random
 2. Find a neighbor of that vertex: add it if it is not already in the graph; else go back to 1.
-We include all edges from the original graph that connect any two vertices in our subgraph.
-(This is handled automatically by the library's subgraph function.)
+We include all edges from the original graph that connect any two vertices in our sub-graph.
+(This is handled automatically by the library's sub-graph function.)
 
 
 ```{r, IterativeBuildOfSubgraph}
@@ -220,10 +220,10 @@ for (i in 1:5){
 }
 ```
 
-These all look good at first impression, and appear to be connected. But we should test the above more carefully to make sure it is really working.
+These all look good at first impression, and appear to be connected (as they must be, if we have done it correctly). But we should test the above more carefully to make sure it is really working.
 
 
-Here's a smaller network to practice with. It comes from Bryan Queme. It's based on a single pathway and is stored as an igraph called "alz"
+Here's a smaller network to practice with. It comes from Bryan Queme. It's based on a single Alzheimer's pathway and is stored as an igraph called "alz"
 ```{r, SmallerNetwork}
 load("Interconversion_of_nucleotide_di_and_triphosphates.RData")
 summary(alz)
@@ -258,7 +258,7 @@ barplot(relafreq, xlab = "degree",
 
 ### Methods - Simple example of Local Moran's I and permutation-based testing
 
-Now we begin to implement some of the methodology.
+Now we begin to implement some of the statistical methodology.
 
 We will practice with small random graphs, in which each possible edge 
 occurs with probability 'EdgeProb'...
@@ -313,26 +313,7 @@ plot(oldnet, edge.arrow.size=.2, edge.curved=0,
      vertex.label.cex=.7,vertex.size=2+igraph::degree(oldnet)) 
 ```
 
-We can do fancy things like letting the node size vary by degree.
-
-```{r fancyplot}
-# Compute node degrees (#links) and use that to set node size:
-l <- layout_with_fr(oldnet)
-plot(oldnet, layout=l, vertex.color="cyan",vertex.size=igraph::degree(oldnet))
-
-net <-  sample_gnp(SizeOfOurNetwork, EdgeProb,directed=FALSE)
-plot(net)
-```
-
-
-Edges, vertices and entire mx can be accessed as follows: (nice tutorial at https://kateto.net/wp-content/uploads/2016/01/NetSciX_2016_Workshop.pdf)
-```{r tutorial_examples, eval=FALSE}
-E(net)
-V(net)
-net[]
-```
-
-Add attributes to the network, vertices, or edges as follows
+We can add attributes to the network, vertices, or edges as follows. Later, we will want the attribute for each node to correspond to gene expression values, for example.
 ```{r attributes}
 V(net)$MyAttribute <- runif(length(V(net)),0,1)
 #vertex_attr(net)
@@ -347,19 +328,6 @@ vertex.size=4+10*V(net)$MyAttribute)
 
 ## Taking advantage of what is there already...
 
-There are a variety of potential useful functions for igraphs. For example, a network diameter is the longest geodesic distance (length of the shortest path between two nodes)
-in the network. In igraph, diameter() returns the distance, while get_diameter() returns the
-nodes along the first found path of that distance.
-Note that edge weights are used by default, unless set to NA.
-```{r diameter}
-diameter(net, directed=F, weights=NA)
-diameter(net, directed=F)
-
-diam <- get_diameter(net, directed=F)
-diam
-plot(net, vertex.color="cyan",)
-```
-
 It is simple to calculate distances between nodes:
 ```{r distancecalc}
 (DM <- distances(net,v=V(net),to=V(net)))
@@ -368,7 +336,7 @@ It is simple to calculate distances between nodes:
 
 Now we write a function to calculate Moran's (global) I. Reminder: Moran's-I is defined as \[ I=\frac{N}{W}\frac{\sum_i \sum_j w_{ij} (x_i-\bar{x})(x_j-\bar{x})}{\sum_i(x_i-\bar{x})^2} \]
 This function, and what follows, needs to be carefully debugged to make sure it is calculating correctly.
-```{r, MoransI, echo=FALSE}
+```{r, MoransI, echo=TRUE}
 
 MoransI <- function(DistanceMx, NodeAttributes){
   NoOfNodes <- length(DistanceMx[1,])
@@ -400,7 +368,7 @@ cat("\nMorans-I: ",MoransI(DM,V(net)$MyAttribute),"    expectation= ",-1/(length
 ```
 
 
-Test it out...
+Test it out on 10 random graphs...
 ```{r tests, eval=FALSE,  echo=FALSE}
 for (k in 1:10){
   net <- sample_gnp(SizeOfOurNetwork, EdgeProb,directed=FALSE)
@@ -417,13 +385,15 @@ for (k in 1:10){
 
 ```
 
+It doesn't seem to be matching the expectation very well, so let's keep an eye on that.
+
 ***
 
 &nbsp;
 
 
 Assessing the null distribution for Moran's-I via permutation tests.
-We permute the node labels across the graph and then calc. Moran's-I to give us the null distribution/
+We permute the node labels across the graph and then calc. Moran's-I to give us the null distribution:
 ```{r NullforMoransI, null, echo=FALSE}
 PermutationTest <- function(ntwk,HowManyPermutations,WhichMeasure)
 {
@@ -448,10 +418,11 @@ abline(v=MoransI(DM,V(net)$MyAttribute),col="red")
 abline(v=-1/(length(V(net)$MyAttribute)-1),col="seagreen")  # the expected value for Morans-I
 
 ```
+This looks like a better match with the expectation, which is reassuring. 
 
 
 How to find immediate neighbors of a vertex  (there is probably a built-in igraph function that does this automatically)
-```{r, find_neighbors, echo=FALSE}
+```{r, find_neighbors, echo=TRUE}
 FindNeighbors <- function(ntwk,focnode)+{
   nbrs<-NULL
   for (i in 1:length(V(ntwk))){
@@ -487,9 +458,7 @@ Smoother <- function(ntwk,weight){
 plot(net, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
 vertex.size=4+10*V(net)$MyAttribute, main="Uniform attributes")
 
-(V(net)$MyAttribute)
 V(net)$MyAttribute <- Smoother(net,0.5)
-(V(net)$MyAttribute)
 
 plot(net, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
 vertex.size=4+10*V(net)$MyAttribute,main="smoothed attributes")
@@ -533,15 +502,15 @@ hw_p <- ggplot(dfsm, aes(x = Smooth, y = MoransI)) +
 (hw_p)
 ```
 
-Now that we've corrected the code for MOran's-I, these look quite different 
+Now that we've corrected the code for Moran's-I, these look quite different 
 
-Let's try another way of producing correlated node labels.
+Let's try another way of producing correlated node labels....
 
 ***
 
 &nbsp;
 
-## Correlated node labels
+## Correlated node labels - spatially autocorrelated attribute values
 
 And now for a more formal addition of spatial correlation, using correlated normals, where the degree of correlation depends upon the network structure (as originally proposed by George VY).
 So, we generate data $y = (I_n - \rho W)^{-1} \times \epsilon$, where $\epsilon \sim MVN(0,I_n)$.
@@ -561,7 +530,6 @@ SARsmoother <- function(ntwk,rho)
   
   # generate the attributes
   y <- solve(diag(n) - rho * W2) %*% rnorm(n)
-  
   
   # Check whether we generate spatial autocorrelation?
   #library(ape)
@@ -602,7 +570,7 @@ aaa<-lapply(Idx, function(x){
   RandomMoransI[x] <<- MoransI(DM,V(net)$MyAttribute)
 
   # now generate spatial correlated vertex labels and recalculate Moran's-I
-  V(net)$MyAttribute <- SARsmoother(net,0.8)
+  V(net)$MyAttribute <- SARsmoother(net,0.5)
   SARSmoothMoransI[x] <<- MoransI(DM,V(net)$MyAttribute)
 })
 
@@ -625,17 +593,17 @@ cat("\n time taken= ", end_time - start_time)
 ```
 
 These don't seem to show much difference! So let's try something else. 
-We pick a focal node at random and label it and all it's neighbors with a 1,
+We pick a focal node at random and label it and all it's neighbors with a 5,
 whereas everything else is labeled rnorm(0,1). That should show a difference.
 First define the function to create the labels:
 ```{r, Correlated, echo=FALSE}
 SpatiallyCorrelatedLabels <- function(ntwk,CentralNode){
   # label CentralNode and all its neighbors 1, and everything else Normal(0,1).
   V(ntwk)$MyAttribute <- rnorm(length(V(ntwk)),0,1)
-  V(ntwk)$MyAttribute[CentralNode] <- 1
+  V(ntwk)$MyAttribute[CentralNode] <- 5
   for (i in 1:length(V(ntwk))){
     if (distances(ntwk,CentralNode,i) == 1){
-      V(ntwk)$MyAttribute[i] <- 1
+      V(ntwk)$MyAttribute[i] <- 5
     }
     }
   return (ntwk)
@@ -644,8 +612,10 @@ SpatiallyCorrelatedLabels <- function(ntwk,CentralNode){
 
 Now test it out:
 ```{r, Test2, echo=FALSE}
+set.seed(23)
 # Pick a focal node at random
 FocalNode <- sample(1:length(V(net)),1)
+FocalNode <- 20
 cat("\nFocalNode: ",FocalNode)
 newnet <- SpatiallyCorrelatedLabels(net,FocalNode)
 plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red")) #, vertex.label.dist=1.5,vertex.size=4+10*V(newnet)$MyAttribute)
@@ -658,11 +628,9 @@ hist(Results2,breaks=20,col="grey")
 abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
 ```
 
-Here we seem to see a reasonable amount of difference.
-In thisd example, the focal node only has one neighbor. 
-It will probably do better on a more connected graph. We should explore that.
+Here we seem to see a reasonable amount of difference, provided the focal node is well-connected.
 
-Let's look at local measures:
+Let's look at local measures, which is what we think we will actually need in the end:
 
 &nbsp;
 
@@ -681,7 +649,14 @@ can be generalized in an obvious way), $w_{ij}$ is a weight that is used to
 characterize the distance between nodes. For example, the weight might measure 
 the number of edges on the shortest path between nodes $i$ and $j$.
 
+We'll work with a bigger test network here
+
 ```{r, LISA, echo=FALSE}
+set.seed(3975)
+net <- sample_gnp(50, 0.15,directed=FALSE)
+FocalNode <- 1
+net <- SpatiallyCorrelatedLabels(net,1)
+plot(net, vertex.color=ifelse(V(net)==FocalNode,"blue","red"),vertex.size=8+2*V(net)$MyAttribute)
 
 MyLISA <- function(ntwk){
   V(ntwk)$LISAstat <- rep(-9,length(V(ntwk)))
@@ -703,9 +678,11 @@ MyLISA <- function(ntwk){
   return (ntwk)
 }
 
+# calcluate Local Moran's-I for each node and plot
 LISAnet <- MyLISA(net)
 plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
-vertex.size=2*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat)) 
+vertex.size=1+1*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat)) 
+cat("\nLISA stats for unpermuted data: ",V(LISAnet)$LISAstat)
 
 
 LISAval <- V(LISAnet)$LISAstat
@@ -718,7 +695,8 @@ PermNtwk <- net
 V(PermNtwk)$MyAttribute <- sample(V(PermNtwk)$MyAttribute,size=length(V(PermNtwk)$MyAttribute),replace=FALSE)
 LISAnetPerm <- MyLISA(PermNtwk)
 plot(LISAnetPerm, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
-vertex.size=2*(0.01-min(V(LISAnetPerm)$LISAstat)+V(LISAnetPerm)$LISAstat))
+vertex.size=1+(0.01-min(V(LISAnetPerm)$LISAstat)+V(LISAnetPerm)$LISAstat))
+cat("\nLISA stats for permuted data: ",V(LISAnetPerm)$LISAstat)
 
 
 LISAval<- V(LISAnetPerm)$LISAstat
@@ -730,7 +708,8 @@ PermNtwk2 <- net
 V(PermNtwk2)$MyAttribute <- sample(V(PermNtwk2)$MyAttribute,size=length(V(PermNtwk2)$MyAttribute),replace=FALSE)
 LISAnetPerm <- MyLISA(PermNtwk2)
 plot(LISAnetPerm, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
-vertex.size=2*(0.01-min(V(LISAnetPerm)$LISAstat)+V(LISAnetPerm)$LISAstat))
+vertex.size=1+(0.01-min(V(LISAnetPerm)$LISAstat)+V(LISAnetPerm)$LISAstat))
+cat("\nLISA stats for permuted data: ",V(LISAnetPerm)$LISAstat)
 LISAval <- V(LISAnetPerm)$LISAstat
 index <- seq(from=1, to=length(LISAval))
 dataN <- rep(3,length(LISAval))
@@ -746,14 +725,13 @@ hw_p <- ggplot(df, aes(x = dataN, y = LISAval))
 hw_p +
   geom_violin() + 
   geom_dotplot(binaxis='y', stackdir='center', dotsize=0.5) +
-  ggtitle("Left=base; right=permuted") +
+  ggtitle("Left=base; right=two permutations") +
   geom_hline(yintercept=V(LISAnet)$LISAstat[FocalNode], linetype=2, color="red", size=1)
  
   #scale_fill_brewer(palette="Dark2")
 #violinplot(data=df$LISAval)
 ```
-
-We see a bit more of a difference there. Lets investigate further...
+We see a clear difference there. the node that is the center of the cluster has a much higher LISA stat value. Let's investigate further...
 
 # Semi-complete graphs
 
@@ -810,10 +788,10 @@ Add correlated node labels to such a network
 ```{r, CorrelatedSemiComplete, echo=FALSE}
 SpatiallyCorrelatedLabels1 <- function(ntwk,SizeOfSemiCompleteComponents){
 
-  # label the first complete subgraph as N(4,1), and everything else N(1,1).
+  # label the first complete subgraph as N(8,1), and everything else N(1,1).
   V(ntwk)$MyAttribute <- 0
   for (i in 1:SizeOfSemiCompleteComponents){
-    V(ntwk)$MyAttribute[i] <- rnorm(1,7,0.1)
+    V(ntwk)$MyAttribute[i] <- rnorm(1,8,0.1)
   } 
   for (i in (SizeOfSemiCompleteComponents+1):length(V(ntwk))){
       V(ntwk)$MyAttribute[i] <- rnorm(1,1,1)
