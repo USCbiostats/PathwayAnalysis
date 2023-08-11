@@ -111,7 +111,7 @@ LowDegreeVertices <- function(Network,MaxDegree)
 
 Test it:
 ```{r , subgraphtest1}
-S2 <- make_ring(20)
+#S2 <- make_ring(20)
 set.seed(33)
 S3 <- sample_grg(50, 0.2,coords=TRUE)
 plot(S3)
@@ -151,7 +151,7 @@ BuildSubGraph <- function(g, subgsize) {
   subg <- sample(1:vcount(g), 1)
   size <- length(subg)
   itcount<-1
-  cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+  #xcat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
   while  ((size < subgsize)&&(itcount<1e6))
   {
     itcount <- itcount+1
@@ -315,6 +315,7 @@ plot(oldnet, edge.arrow.size=.2, edge.curved=0,
 
 We can add attributes to the network, vertices, or edges as follows. Later, we will want the attribute for each node to correspond to gene expression values, for example.
 ```{r attributes}
+net <- oldnet
 V(net)$MyAttribute <- runif(length(V(net)),0,1)
 #vertex_attr(net)
 plot(net, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
@@ -515,7 +516,7 @@ Let's try another way of producing correlated node labels....
 And now for a more formal addition of spatial correlation, using correlated normals, where the degree of correlation depends upon the network structure (as originally proposed by George VY).
 So, we generate data $y = (I_n - \rho W)^{-1} \times \epsilon$, where $\epsilon \sim MVN(0,I_n)$.
 Since $\epsilon \sim MVN(0,I_n)$ the independent version has attrributes with $Normal(0,1)$ distribution.
-```{r, SARmodel, echo=FALSE}
+```{r, SARmodel, echo=TRUE}
 rho <- 0.8  # The degree of correlation 
 SARsmoother <- function(ntwk,rho)
 {
@@ -532,9 +533,9 @@ SARsmoother <- function(ntwk,rho)
   y <- solve(diag(n) - rho * W2) %*% rnorm(n)
   
   # Check whether we generate spatial autocorrelation?
-  #library(ape)
-  #sc <- Moran.I(as.vector(y), W)
-  #cat("\np=",sc$p.value)
+  library(ape)
+  sc <- Moran.I(as.vector(y), W)
+  cat("\np=",sc$p.value)
 
   return (y)
 }
@@ -596,6 +597,7 @@ These don't seem to show much difference! So let's try something else.
 We pick a focal node at random and label it and all it's neighbors with a 5,
 whereas everything else is labeled rnorm(0,1). That should show a difference.
 First define the function to create the labels:
+
 ```{r, Correlated, echo=FALSE}
 SpatiallyCorrelatedLabels <- function(ntwk,CentralNode){
   # label CentralNode and all its neighbors 1, and everything else Normal(0,1).
@@ -626,6 +628,7 @@ cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$
 Results2 <-PermutationTest(newnet,100,1)
 hist(Results2,breaks=20,col="grey")
 abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
+cat("\nObserved Mortan-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
 ```
 
 Here we seem to see a reasonable amount of difference, provided the focal node is well-connected.
@@ -678,7 +681,7 @@ MyLISA <- function(ntwk){
   return (ntwk)
 }
 
-# calcluate Local Moran's-I for each node and plot
+# calculate Local Moran's-I for each node and plot
 LISAnet <- MyLISA(net)
 plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
 vertex.size=1+1*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat)) 
@@ -870,10 +873,10 @@ abline(v=ObservedMoransI,col="red",lty=2)
 
 That seems to work nicely.
 
-Now try a version in which we permute everything except the focal node when calculating the p-value for that node
+Here's a version in which we permute everything except the focal node when calculating the p-value for that node. (For now, let's derecatew this and just use permutations of all nodes. It will save time for testing and may well be the right thing to do anyway.)
 
 First we need a permutation function that keeps node i fixed
-```{r   FixedPerm, echo=FALSE}
+```{r   OldFixedPerm, echo=FALSE, eval=FALSE}
 
 FixedPerm <- function(Vect,FixedIndex){
   V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
@@ -981,7 +984,7 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
 
 Here's a new version of the permutation test, written by Mingzhi: 
 
-```{r   NewFixedPerm, echo=FALSE}
+```{r   NewFixedPerm, echo=FALSE, eval=FALSE}
 
 FixedPerm <- function(Vect,FixedIndex){
   V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
@@ -1055,7 +1058,6 @@ V(net)$PermedAttribute
 net2 <- CopyNet(net)
 plot(net2, edge.arrow.size=.5,  vertex.label.dist=1.5, vertex.size=5+2*V(net2)$MyAttribute,main="attributes of permuted network")
 
-net2 <- CopyNet(net)
 NPerms <- 20
 PValue <- rep(0,SizeOfOurNetwork)
 LStat <- rep(0,NPerms)
@@ -1089,7 +1091,38 @@ ggplot(PlotData, aes(x = factor(OverExp), y = PValue)) +
    theme_grey(base_size = 24, base_family = "Times")
 ```
 
+Let's repeat that, but on more realistic graphs, This time we recording the lowest p-value across all nodes for each (permuted) graph.
+Let's base the analysis on the alzheimer's network from Bryan, but using subgraphs chosen by chosing a node at random and then iteratively adding neighbors until we have 100 loci
 
+```{r AlzBasedTests}
+FullNetwork <- alz
+plot(FullNetwork,vertex.label.cex=0.2,edge.arrow.size=0.3,vertex.size=2)
+
+set.seed(23)
+# work with a subgraph of 50 nodes
+SubGraphSize <- 50
+
+# generate the subgraph 
+# NEed a new version of this function that passes the focl node as a parameter
+NewSub <- BuildSubGraph(FullNetwork,SubGraphSize)
+
+plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
+cat("\n#components: ",count_components(NewSub))
+cat("\nFocalNode: ",FocalNode)
+
+newnet <- SpatiallyCorrelatedLabels(NewSub,FocalNode)
+plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.label.dist=1.5,vertex.size=4+10*V(newnet)$MyAttribute)
+  
+cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$MyAttribute),"    expectation= ",-1/(length(V(newnet)$MyAttribute)-1))
+  
+# Does it look significant?
+#Results2 <-PermutationTest(newnet,10,1)
+#hist(Results2,breaks=20,col="grey")
+#abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
+#cat("\nObserved Mortan-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
+```
+
+```
 
 
 ***
