@@ -174,12 +174,12 @@ BuildSubGraph <- function(g, subgsize) {
       }
       # add it to subg
       if (!(v2 %in% subg)){
-        cat("\nFocal vertex: ",v,"  nbrs: ",v1,"  sampled: ",v2)
+        #cat("\nFocal vertex: ",v,"  nbrs: ",v1,"  sampled: ",v2)
         subg <- c(subg, v2)
       } 
       size <- length(subg)
     }
-    cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+    #cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
     
     # debugging:
     compcount <- count_components(subgraph(g,vids=subg))
@@ -1136,7 +1136,7 @@ BuildFocalSubGraph <- function(g, subgsize, FocalNodeID) {
   subg <- FocalNodeID
   size <- length(subg)
   itcount<-1
-  #xcat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+  #cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
   while  ((size < subgsize)&&(itcount<1e6))
   {
     itcount <- itcount+1
@@ -1159,12 +1159,12 @@ BuildFocalSubGraph <- function(g, subgsize, FocalNodeID) {
       }
       # add it to subg
       if (!(v2 %in% subg)){
-        cat("\nFocal vertex: ",v,"  nbrs: ",v1,"  sampled: ",v2)
+        #cat("\nFocal vertex: ",v,"  nbrs: ",v1,"  sampled: ",v2)
         subg <- c(subg, v2)
       } 
       size <- length(subg)
     }
-    cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
+    #cat("\nIteration: ",itcount,"  Subgraph size=",size,"  vertices: ",subg)
     
     # debugging:
     compcount <- count_components(subgraph(g,vids=subg))
@@ -1192,9 +1192,8 @@ We use subgraphs chosen by chosing a node at random and then iteratively adding 
 
 ```{r AlzBasedTests2}
 FullNetwork <- alz
-plot(FullNetwork,vertex.label.cex=0.2,edge.arrow.size=0.3,vertex.size=2)
 
-set.seed(23)
+set.seed(234)
 # work with a subgraph of 50 nodes
 SubGraphSize <- 50
 
@@ -1216,7 +1215,7 @@ cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$
 # Generate some attribute values - use a fixed value for the focal node and it's near neighbors; Unif(0,1) everywhere else
 SpatiallyCorrelatedLabels3 <- function(ntwk,CentralNode,NeighborhoodDistance){
   # label CentralNode and all its near neighbors 5, and everything else Normal(0,1).
-  V(ntwk)$MyAttribute <- rnorm(length(V(ntwk)),0,1)
+  V(ntwk)$MyAttribute <- runif(length(V(ntwk)),0,1)
   V(ntwk)$MyAttribute[CentralNode] <- 5
   for (i in 1:length(V(ntwk))){
     if (distances(ntwk,CentralNode,i) <= NeighborhoodDistance){
@@ -1231,11 +1230,11 @@ plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.labe
 
 
   
-# Do a permutation test to see if the results when testing for correlation look significant?
-Results2 <-PermutationTest(newnet,10,1)
-hist(Results2,breaks=20,col="grey")
+# Do a permutation test to see if the results when testing usaing Morans I look significant?
+Results3 <-PermutationTest(newnet,100,1)
+hist(Results3,breaks=20,col="grey")
 abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
-cat("\nObserved Mortan-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
+cat("\nObserved Moran-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
 ```
 
 
