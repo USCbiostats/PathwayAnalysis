@@ -602,7 +602,7 @@ First define the function to create the labels:
 SpatiallyCorrelatedLabels <- function(ntwk,CentralNode){
   # label CentralNode and all its neighbors 1, and everything else Normal(0,1).
   V(ntwk)$MyAttribute <- rnorm(length(V(ntwk)),0,1)
-  V(ntwk)$MyAttribute[CentralNode] <- 5
+  V(ntwk)$MyAttribute[CentralNode] <- 1
   for (i in 1:length(V(ntwk))){
     if (distances(ntwk,CentralNode,i) == 1){
       V(ntwk)$MyAttribute[i] <- 5
@@ -1213,25 +1213,32 @@ plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.labe
 cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$MyAttribute),"    expectation= ",-1/(length(V(newnet)$MyAttribute)-1))
 
 
-# Generate some attribute values - use a fixed value for the focal node and it's near neighbors; Unif(0,1) everywhere else
+# Generate some attribute values - use FocalValue for the focal node and it's near neighbors; Unif(0,1) everywhere else
 SpatiallyCorrelatedLabels3 <- function(ntwk,CentralNode,NeighborhoodDistance){
   # label CentralNode and all its near neighbors 5, and everything else Normal(0,1).
+  FocalValue <- 3
   V(ntwk)$MyAttribute <- runif(length(V(ntwk)),0,1)
-  V(ntwk)$MyAttribute[CentralNode] <- 5
+  V(ntwk)$MyAttribute[CentralNode] <- 3
+  
+  NbrCount<- 0
   for (i in 1:length(V(ntwk))){
     if (distances(ntwk,CentralNode,i) <= NeighborhoodDistance){
-      V(ntwk)$MyAttribute[i] <- 5
+      V(ntwk)$MyAttribute[i] <- 3
+      NbrCount <- NbrCount +1
     }
+    else
+      V(ntwk)$MyAttribute[i] <- rnorm(1,0,1)
   }
+  cat("nThere are ",NbrCount, " nodes within  distance of ",NeighborhoodDistance)
   return (ntwk)
 }
 
 newnet <- SpatiallyCorrelatedLabels3(newnet,FocalNode,2)
-plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=ifelse(V(newnet)==FocalNode,1,0.4),vertex.size=V(newnet)$MyAttribute,main="Subgraph showing attribute values")
 
+plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=0.2,vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",V(newnet)$MyAttribute)),main="Subgraph showing attribute values")
 
   
-# Do a permutation test to see if the results when testing usaing Morans I look significant?
+# Do a permutation test to see if the results when testing using Morans I look significant?
 Results3 <-PermutationTest(newnet,100,1)
 hist(Results3,breaks=20,col="grey")
 abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
@@ -1248,7 +1255,22 @@ CopyNet2 <- function(ntwk){
   return (ntwk)
 }
 
-set.seed(45)
+set.seed(455)
+NPerms <- 50
+
+# work with a subgraph 
+SubGraphSize <- 200
+
+# generate the subgraph 
+Focus <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
+
+NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,Focus)
+
+plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.3,main="Subgraph")
+
+
+# Generate a new set of attributes:
+newnet <- SpatiallyCorrelatedLabels3(newnet,FocalNode,2)
 net2 <- CopyNet2(newnet) 
 cat("\nSubgraph #components: ",count_components(net2))
 
@@ -1284,10 +1306,10 @@ OldLisaNetForNodeI <- function(ntwk,IthNode){
 
 #DM <- distances(net,v=V(net),to=V(net))  # distance mx
 #net<-SpatiallyCorrelatedLabels2(net,SubNetworkSize,2,1)
-cat("\nOriginal Attributes: ")
-(V(net2)$MyAttribute)
+#cat("\nOriginal Attributes: ")
+#(V(net2)$MyAttribute)
 
-plot(net2, edge.arrow.size=.3,   vertex.size=5+2*V(net2)$MyAttribute,main="original attributes",vertex.label.cex=0.2)
+plot(net2, edge.arrow.size=.3,  vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",V(newnet)$MyAttribute)),main="original attributes",vertex.label.cex=0.2)
 
 #LISAnet <- MyLISA(net)
 #plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
@@ -1297,16 +1319,14 @@ plot(net2, edge.arrow.size=.3,   vertex.size=5+2*V(net2)$MyAttribute,main="origi
 # permute the network and re-evaluate
 i <- FocalNode
 V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,FocalNode)
-cat("\nPermuted Attributes: ")
-(V(net2)$PermedAttribute)
-cat("\nPermuted Attributes: ")
+#cat("\nPermuted Attributes: ")
+#(V(net2)$PermedAttribute)
 
 #LISAnet2 <- MyLISA(net2)
 
 
-plot(net2, edge.arrow.size=.5,  vertex.label.cex=0.2, vertex.size=5+2*V(net2)$PermedAttribute,main="attributes of permuted network")
+plot(net2, edge.arrow.size=.5,  vertex.label.cex=0.2, vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",V(newnet)$MyAttribute)),main="attributes of permuted network")
 
-NPerms <- 50
 PValue <- rep(0,SizeOfOurNetwork)
 LStat <- rep(0,NPerms)
 
@@ -1325,7 +1345,7 @@ for (i in FocalNode:FocalNode)
   PValue[FocalNode] <- sum(LStat>V(net2)$LISAstat[FocalNode])/NPerms
 }
 #PValue[FocalNode] <- sum(LStat>V(LISAnet)$LISAstat[FocalNode])/NPerms
-(PValue)
+#(PValue)
 
 boxplot(LStat)
 abline(h=LStat[FocalNode],col="red",main="Distribution of LISA Stat")
@@ -1344,10 +1364,6 @@ abline(h=LStat[FocalNode],col="red",main="Distribution of LISA Stat")
 ```
 
 
-***
-&nbsp;
-***
-&nbsp;
 ***
 &nbsp;
 ***
