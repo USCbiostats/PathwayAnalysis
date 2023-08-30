@@ -1272,11 +1272,11 @@ CopyNet2 <- function(ntwk){
   return (ntwk)
 }
 
-set.seed(4564)
+set.seed(45641)
 NPerms <- 50
 
 # work with a subgraph 
-SubGraphSize <- 100
+SubGraphSize <- 250
 
 # generate the subgraph 
 FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
@@ -1362,7 +1362,7 @@ for (i in WhichIsFocal:WhichIsFocal)
   # Evaluate Lisa stat for node i
   LStat=mclapply(1:NPerms, ff)
   LStat=unlist(LStat)
-  PValue[WhichIsFocal] <- sum(LStat>V(net2)$LISAstat[WhichIsFocal])/NPerms
+  PValue[WhichIsFocal] <- sum(LStat>ObservedLISA)/NPerms
 }
 #PValue[FocalNode] <- sum(LStat>V(LISAnet)$LISAstat[FocalNode])/NPerms
 #(PValue)
