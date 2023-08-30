@@ -876,7 +876,7 @@ That seems to work nicely.
 Here's a version in which we permute everything except the focal node when calculating the p-value for that node. (For now, let's deprecate this and just use permutations of all nodes. It will save time for testing and may well be the right thing to do anyway.)
 
 First we need a permutation function that keeps node i fixed
-```{r   OldFixedPerm, echo=FALSE, eval=FALSE}
+```{r   OldFixedPerm, echo=FALSE, eval=TRUE}
 
 FixedPerm <- function(Vect,FixedIndex){
   V <- sample(Vect[-FixedIndex],length(Vect)-1,replace=FALSE)
@@ -1104,7 +1104,7 @@ set.seed(23)
 SubGraphSize <- 50
 
 # generate the subgraph 
-# NEed a new version of this function that passes the focl node as a parameter
+# Need a new version of this function that passes the focal node as a parameter
 NewSub <- BuildSubGraph(FullNetwork,SubGraphSize)
 
 plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3)
@@ -1195,35 +1195,28 @@ We use subgraphs chosen by chosing a node at random and then iteratively adding 
 #FullNetwork <- alz
 FullNetwork <- S
 
-set.seed(23456)
-# work with a subgraph of 50 nodes
-SubGraphSize <- 100
-
-# generate the subgraph 
-Focus <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
-
-NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,Focus)
-
-plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3,main="Subgraph")
-cat("\nSubgraph #components: ",count_components(NewSub))
-cat("\nFocalNode: ",FocalNode)
-
-newnet <- SpatiallyCorrelatedLabels(NewSub,FocalNode)
-plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=ifelse(V(newnet)==FocalNode,1,0.4),vertex.size=ifelse(V(newnet)==FocalNode,10,5))
-  
-cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$MyAttribute),"    expectation= ",-1/(length(V(newnet)$MyAttribute)-1))
-
-
-# Generate some attribute values - use FocalValue for the focal node and it's near neighbors; Unif(0,1) everywhere else
 SpatiallyCorrelatedLabels3 <- function(ntwk,CentralNode,NeighborhoodDistance){
   # label CentralNode and all its near neighbors 5, and everything else Normal(0,1).
   #FocalValue <- 3
   #V(ntwk)$MyAttribute <- runif(length(V(ntwk)),0,1)
   #V(ntwk)$MyAttribute[CentralNode] <- 3
   
+  # Find the focal node
+  CenterNode <- which(V(ntwk)$MyID==CentralNode)
+  
+  # The focal node will always be the first node - check to make sure...
+  #if (V(ntwk)$MyID[1] != CentralNode){
+  #  # throw an error
+  #  cat("\nCentral node was incorrect in SpatiallyCorrelatedLabels3()")
+  #  cat("\nCentralNode")
+  #  break;
+  #}else{
+  #  CentralNode <- 1
+  #}
+  
   NbrCount<- -1  # Don't want to count the Focal Node itself
   for (i in 1:length(V(ntwk))){
-    if (distances(ntwk,CentralNode,i) <= NeighborhoodDistance){
+    if (distances(ntwk,CenterNode,i) <= NeighborhoodDistance){
       V(ntwk)$MyAttribute[i] <- 5
       NbrCount <- NbrCount +1
     }
@@ -1234,16 +1227,39 @@ SpatiallyCorrelatedLabels3 <- function(ntwk,CentralNode,NeighborhoodDistance){
   return (ntwk)
 }
 
-newnet <- SpatiallyCorrelatedLabels3(newnet,FocalNode,2)
+set.seed(23456)
+# work with a subgraph of 50 nodes
+SubGraphSize <- 10
 
-plot(newnet, vertex.color=ifelse(V(newnet)==FocalNode,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=0.2,vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="Subgraph showing attribute values")
+# generate the subgraph 
+Focus <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
+
+NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,Focus)
+
+plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.8,edge.arrow.size=0.3,main="Subgraph")
+cat("\nSubgraph #components: ",count_components(NewSub))
+cat("\nFocalNode: ",Focus)
+
+newnet <- SpatiallyCorrelatedLabels3(NewSub,Focus,2)
+plot(newnet, vertex.color=ifelse(V(newnet)==Focus,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=ifelse(V(newnet)==Focus,1,0.4),vertex.size=ifelse(V(newnet)==Focus,10,5))
+  
+cat("\nMorans-I: ",MoransI(distances(newnet,v=V(newnet),to=V(newnet)),V(newnet)$MyAttribute),"    expectation= ",-1/(length(V(newnet)$MyAttribute)-1))
+
+
+# Generate some attribute values - use FocalValue for the focal node and it's near neighbors; Unif(0,1) everywhere else
+
+
+newnet <- SpatiallyCorrelatedLabels3(newnet,Focus,2)
+
+plot(newnet, vertex.color=ifelse(V(newnet)==Focus,"blue","red"), vertex.label.dist=2.5,edge.arrow.size=0.3,vertex.label.cex=0.2,vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="Subgraph showing attribute values")
 
   
 # Do a permutation test to see if the results when testing using Morans I look significant?
-Results3 <-PermutationTest(newnet,100,1)
-hist(Results3,breaks=20,col="grey")
-abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
-cat("\nObserved Moran-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
+# The nextline causes an error - to be fixed
+#Results3 <-PermutationTest(newnet,100,1)
+#hist(Results3,breaks=20,col="grey")
+#abline(v=MoransI(DM,V(newnet)$MyAttribute),col="red")
+#cat("\nObserved Moran-s-I value is ",MoransI(DM,V(newnet)$MyAttribute))
 ```
 
 
@@ -1256,18 +1272,18 @@ CopyNet2 <- function(ntwk){
   return (ntwk)
 }
 
-set.seed(456)
+set.seed(4564)
 NPerms <- 50
 
 # work with a subgraph 
-SubGraphSize <- 500
+SubGraphSize <- 100
 
 # generate the subgraph 
-Focus <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
+FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
 
-NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,Focus)
+NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,FocalNode)
 
-plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.3,main="Subgraph")
+plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.1,main="Subgraph")
 
 
 # Generate a new set of attributes:
@@ -1310,46 +1326,50 @@ OldLisaNetForNodeI <- function(ntwk,IthNode){
 #cat("\nOriginal Attributes: ")
 #(V(net2)$MyAttribute)
 
-plot(net2, edge.arrow.size=.3,  vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="original attributes",vertex.label.cex=0.2)
+plot(net2, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="original attributes",vertex.label.cex=0.2)
 
 #LISAnet <- MyLISA(net)
 #plot(LISAnet, edge.arrow.size=.5, vertex.label.color="black", vertex.label.dist=1.5,
 #vertex.size=0.25*(0.01-min(V(LISAnet)$LISAstat)+V(LISAnet)$LISAstat),main="LISA values")
 
+# OBserved LStat value:
+ObservedLISA <- OldLisaNetForNodeI(net2,WhichIsFocal)
 
 # permute the network and re-evaluate
 i <- FocalNode
-V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,FocalNode)
+WhichIsFocal <- which(V(net2)$MyID==FocalNode)
+V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
 #cat("\nPermuted Attributes: ")
 #(V(net2)$PermedAttribute)
 
 #LISAnet2 <- MyLISA(net2)
 
 
-plot(net2, edge.arrow.size=.5,  vertex.label.cex=0.2, vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="attributes of permuted network")
+plot(net2, edge.arrow.size=.2,  vertex.label.cex=0.2, vertex.size= as.numeric(ifelse(V(net2)$PermedAttribute < 0,"0.1",2+V(net2)$PermedAttribute)),main="attributes of sample permuted network")
 
 PValue <- rep(0,SizeOfOurNetwork)
 LStat <- rep(0,NPerms)
 
 ff <- function(j){
-    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,FocalNode)
-    LStat[j] <- OldLisaNetForNodeI(net2,FocalNode)
+    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
+    LStat[j] <- OldLisaNetForNodeI(net2,WhichIsFocal)
 }
 
 #for (index in 1:SizeOfOurNetwork)
-for (i in FocalNode:FocalNode)
+for (i in WhichIsFocal:WhichIsFocal)
 {
   #cat("\n",index)
   # Evaluate Lisa stat for node i
   LStat=mclapply(1:NPerms, ff)
   LStat=unlist(LStat)
-  PValue[FocalNode] <- sum(LStat>V(net2)$LISAstat[FocalNode])/NPerms
+  PValue[WhichIsFocal] <- sum(LStat>V(net2)$LISAstat[WhichIsFocal])/NPerms
 }
 #PValue[FocalNode] <- sum(LStat>V(LISAnet)$LISAstat[FocalNode])/NPerms
 #(PValue)
 
 boxplot(LStat)
-abline(h=LStat[FocalNode],col="red",main="Distribution of LISA Stat")
+abline(h=ObservedLISA,col="red",main="Distribution of LISA Stat")
+cat("\nLISA stat value for focal node: ",ObservedLISA)
 
 
 #OverExp <- c(rep(0,25),rep(1,175))
