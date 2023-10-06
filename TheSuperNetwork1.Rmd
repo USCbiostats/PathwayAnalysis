@@ -1263,7 +1263,9 @@ plot(newnet, vertex.color=ifelse(V(newnet)==Focus,"blue","red"), vertex.label.di
 ```
 
 
-Now let's do some permutation tests on this graph using local Moran's I...
+
+Now let's do some permutation tests on this graph using local Moran's I.
+The permutation test is now written as a function.
 
 ```{r LocalMoran}
 
@@ -1272,30 +1274,8 @@ CopyNet2 <- function(ntwk){
   return (ntwk)
 }
 
-# we are using an old  version of LisaNetForNodeI() 
-# and re-using some of the code above
-
-OldLisaNetForNodeI <- function(ntwk,IthNode){
-  V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
-  AttributeMean <- mean(V(ntwk)$MyAttribute)
-  # Standardize node labels - subtract the mean attrubute value from all attributes
-  V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
-  for (i in IthNode:IthNode){  # This loop can be removed. It's a legacy of code I borrowed from a Morans-I function
-    L <- 0
-    for (j in 1:length(V(ntwk))){
-      if (distances(ntwk,v=V(ntwk)[i],to=V(ntwk)[j]) == 1){
-        # they are neighbors - for now we only consider directly adjacent nodes
-        L <- L + V(ntwk)$StandardizedAttribute[j] # there would also be a weight term here if we wanted a more general definition of 'neighbor'
-      }
-    }
-    L <- L * V(ntwk)$StandardizedAttribute[i]
-  }
-  return (L)
-}
-
-
-set.seed(45643)
-NPerms <- 50
+set.seed(45644)  # Error when seed is 45644
+NPerms <- 250
 
 # work with a subgraph 
 SubGraphSize <- 250
@@ -1304,84 +1284,13 @@ SubGraphSize <- 250
 FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
 
 NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,FocalNode)
-
-plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.1,main="Subgraph")
-
-
-# A function to generate attributes and run a permutation test
-# First a function to help parallelize
-ff <- function(j){
-    V(net2)$MyAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
-    LStat[j] <- OldLisaNetForNodeI(net2,WhichIsFocal)
-}
-
-# Now the perm test
-PermTestForLocalMoransI <- function(SubGraph)
-{
-  # Generate a new set of attributes:
-  newnet <- SpatiallyCorrelatedLabels3(NewSub,FocalNode,1)
-  net2 <- CopyNet2(newnet) 
-  cat("\nSubgraph #components: ",count_components(net2))
-  
-  plot(net2, edge.arrow.size=0.2,  vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="original attributes",vertex.label.cex=0.02)
-
-  # Observed LStat value:
-  ObservedLISA <- OldLisaNetForNodeI(net2,WhichIsFocal)
-
-  # permute the network and re-evaluate
-  i <- FocalNode
-  # We will use a different focal node each time
-  WhichIsFocal <- which(V(net2)$MyID==FocalNode)
-  #WhichIsFocal <- sample(1:length(V(net2)$MyID),1)
-  V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
-
-  plot(net2, edge.arrow.size=.2,  vertex.label.cex=0.02, vertex.size= as.numeric(ifelse(V(net2)$PermedAttribute < 0,"0.1",2+V(net2)$PermedAttribute)),main="attributes of sample permuted network")
-  
-  PValue <- rep(0,SizeOfOurNetwork)
-  LStat <- rep(0,NPerms)
-
-  for (i in WhichIsFocal:WhichIsFocal)
-  {
-    #cat("\n",index)
-    # Evaluate Lisa stat for node i
-    LStat=mclapply(1:NPerms, ff)
-    LStat=unlist(LStat)
-    PValue[WhichIsFocal] <- sum(LStat>ObservedLISA)/NPerms
-  }
-  #PValue[FocalNode] <- sum(LStat>V(LISAnet)$LISAstat[FocalNode])/NPerms
-  #(PValue)
-
-  boxplot(LStat,main=c("Observed LISA stat:",ObservedLISA))
-  abline(h=ObservedLISA,col="red",main="Distribution of LISA Stat")
-  cat("\nLISA stat value for focal node: ",ObservedLISA,",  focal node is ",WhichIsFocal)
-}
-
-for (j in 1:5){
-  PermTestForLocalMoransI(NewSub)
-}
-
-```
+WhichIsFocal <- which(V(NewSub)$MyID==FocalNode)
 
 
-Now let's do some permutation tests on this graph using local Moran's I...
+# Generate some attribute values
+newnet <- SpatiallyCorrelatedLabels3(NewSub,FocalNode,1)
+NewSub <- CopyNet2(newnet) 
 
-```{r LocalMoran}
-
-
-CopyNet2 <- function(ntwk){
-  return (ntwk)
-}
-
-set.seed(45643)
-NPerms <- 50
-
-# work with a subgraph 
-SubGraphSize <- 250
-
-# generate the subgraph 
-FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
-
-NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,FocalNode)
 
 plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.1,main="Subgraph")
 
@@ -1391,7 +1300,7 @@ plot(NewSub,vertex.label=V(NewSub)$MyID,vertex.label.cex=0.4,edge.arrow.size=0.1
 OldLisaNetForNodeI <- function(ntwk,IthNode){
   V(ntwk)$StandardizedAttribute <- rep(-9,length(V(ntwk)))
   AttributeMean <- mean(V(ntwk)$MyAttribute)
-  # Standardize node labels - subtract the mean attrubute value from all attributes
+  # Standardize node labels - subtract the mean attribute value from all attributes
   V(ntwk)$StandardizedAttribute <- V(ntwk)$MyAttribute - AttributeMean
   for (i in IthNode:IthNode){  # This loop can be removed. It's a legacy of code I borrowed from a Moran's-I function
     L <- 0
@@ -1406,13 +1315,13 @@ OldLisaNetForNodeI <- function(ntwk,IthNode){
   return (L)
 }
 
-plot(net2, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(newnet)$MyAttribute < 0,"0.1",2+V(newnet)$MyAttribute)),main="original attributes",vertex.label.cex=0.2)
+plot(NewSub, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(NewSub)$MyAttribute < 0,"0.1",2+V(NewSub)$MyAttribute)),main="original attributes",vertex.label.cex=0.2)
 
 # OBserved LStat value:
-ObservedLISA <- OldLisaNetForNodeI(net2,WhichIsFocal)
+ObservedLISA <- OldLisaNetForNodeI(NewSub,WhichIsFocal)
 
 # Function to permute the attribute values and recalculate Local Moran's I
-PValue <- rep(0,SizeOfOurNetwork)
+#PValue <- rep(0,SizeOfOurNetwork)
 LStat <- rep(0,NPerms)
 
 PermuteAndRecalculate <- function(ntwk,Focus){
@@ -1423,15 +1332,15 @@ PermuteAndRecalculate <- function(ntwk,Focus){
   #plot(ntwk, edge.arrow.size=.2,  vertex.label.cex=0.2, vertex.size= as.numeric(ifelse(V(ntwk)$PermedAttribute < 0,"0.1",2+V(ntwk)$PermedAttribute)),main="attributes of sample permuted network")
   
   LMI <- OldLisaNetForNodeI(ntwk,WhichIsFocal)
-  cat("\nLMI:",LMI)
+  #cat("\nLMI:",LMI)
   return(LMI)
 }
 
 #(head(V(net2)$MyAttribute))
 for (kk in 1:NPerms){
-  LStat[kk] <- PermuteAndRecalculate(net2,FocalNode)
+  LStat[kk] <- PermuteAndRecalculate(NewSub,FocalNode)
 }
-#(head(V(net2)$MyAttribute))
+#(head(V(NewSub)$MyAttribute))
 PValue <- sum(LStat>ObservedLISA)/NPerms
 cat("nNewPValue: ",PValue)
 boxplot(LStat)
@@ -1442,6 +1351,7 @@ NewLStat <- LStat
 
 
 # permute the network and re-evaluate
+net2 <- CopyNet2(NewSub)
 i <- FocalNode
 WhichIsFocal <- which(V(net2)$MyID==FocalNode)
 V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
@@ -1475,6 +1385,18 @@ boxplot(LStat)
 abline(h=ObservedLISA,col="red",main="Distribution of LISA Stat")
 cat("\nLISA stat value for focal node: ",ObservedLISA)
 
+
+cat("\nKS test result:\n")
+(ks.test(NewLStat,LStat))
+ks <- ks.test(NewLStat,LStat)
+plot(ecdf(LStat), 
+     xlim = range(c(LStat, NewLStat)), 
+     col = "blue",pch='.')
+plot(ecdf(NewLStat), 
+     add = TRUE, 
+     lty = "dashed",
+     col = "red",pch='.')
+ 
 
 #OverExp <- c(rep(0,25),rep(1,175))
 #PlotData <- as.data.frame(cbind(PValue,OverExp))
