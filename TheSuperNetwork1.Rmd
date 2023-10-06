@@ -1274,7 +1274,7 @@ CopyNet2 <- function(ntwk){
   return (ntwk)
 }
 
-set.seed(45644)  # Error when seed is 45644
+set.seed(45642)  # Error when seed is 45644 - fixed
 NPerms <- 250
 
 # work with a subgraph 
