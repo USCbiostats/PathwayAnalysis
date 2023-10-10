@@ -1197,10 +1197,7 @@ FullNetwork <- S
 
 SpatiallyCorrelatedLabels3 <- function(ntwk,CentralNode,NeighborhoodDistance){
   # label CentralNode and all its near neighbors 5, and everything else Normal(0,1).
-  #FocalValue <- 3
-  #V(ntwk)$MyAttribute <- runif(length(V(ntwk)),0,1)
-  #V(ntwk)$MyAttribute[CentralNode] <- 3
-  
+
   # Find the focal node
   CenterNode <- which(V(ntwk)$MyID==CentralNode)
   
@@ -1342,7 +1339,7 @@ for (kk in 1:NPerms){
 }
 #(head(V(NewSub)$MyAttribute))
 PValue <- sum(LStat>ObservedLISA)/NPerms
-cat("nNewPValue: ",PValue)
+cat("\nNewPValue: ",PValue)
 boxplot(LStat)
 abline(h=ObservedLISA,col="red",main="New distribution of LISA Stat")
 cat("\nLISA stat value for focal node: ",ObservedLISA)
@@ -1350,17 +1347,13 @@ NewLStat <- LStat
 
 
 
+# The following is old code to check we still get the same answer now that we have re0written thingds...
+
 # permute the network and re-evaluate
 net2 <- CopyNet2(NewSub)
 i <- FocalNode
 WhichIsFocal <- which(V(net2)$MyID==FocalNode)
 V(net2)$PermedAttribute <- FixedPerm(V(net2)$MyAttribute,WhichIsFocal)
-#cat("\nPermuted Attributes: ")
-#(V(net2)$PermedAttribute)
-
-#LISAnet2 <- MyLISA(net2)
-
-
 plot(net2, edge.arrow.size=.2,  vertex.label.cex=0.2, vertex.size= as.numeric(ifelse(V(net2)$PermedAttribute < 0,"0.1",2+V(net2)$PermedAttribute)),main="attributes of sample permuted network")
 
 
@@ -1369,7 +1362,6 @@ ff <- function(j){
     LStat[j] <- OldLisaNetForNodeI(net2,WhichIsFocal)
 }
 
-#for (index in 1:SizeOfOurNetwork)
 for (i in WhichIsFocal:WhichIsFocal)
 {
   #cat("\n",index)
@@ -1378,8 +1370,6 @@ for (i in WhichIsFocal:WhichIsFocal)
   LStat=unlist(LStat)
   PValue[WhichIsFocal] <- sum(LStat>ObservedLISA)/NPerms
 }
-#PValue[FocalNode] <- sum(LStat>V(LISAnet)$LISAstat[FocalNode])/NPerms
-#(PValue)
 
 boxplot(LStat)
 abline(h=ObservedLISA,col="red",main="Distribution of LISA Stat")
@@ -1406,6 +1396,71 @@ plot(ecdf(NewLStat),
 #   xlab("Group") +
 #  ylab("Permutation test P-value") +
 #   theme_grey(base_size = 24, base_family = "Times")
+
+
+```
+
+Now let's try to do repeated permutation tests and look at the distribution of the resulting p-values....
+```{r FullPerm}
+
+library(foreach)
+set.seed(45642)  
+NPerms <- 250
+NRepeats <- 20
+PVals <- rep(0,NRepeats)
+nNeighbors <- rep(0,NRepeats)
+
+SpatiallyCorrelatedLabels4 <- function(ntwk,CentralNode,NeighborhoodDistance,FocalMean,RemainingMean){
+  # label CentralNode and all its near neighbors Normal(FocalMean,1), and everything else Normal(RemainingMean,1).
+
+  # Find the focal node
+  CenterNode <- which(V(ntwk)$MyID==CentralNode)
+  
+  NbrCount<- -1  # Don't want to count the Focal Node itself
+  for (i in 1:length(V(ntwk))){
+    if (distances(ntwk,CenterNode,i) <= NeighborhoodDistance){
+      V(ntwk)$MyAttribute[i] <- rnorm(FocalMean,0,1)
+      NbrCount <- NbrCount +1
+    }
+    else
+      V(ntwk)$MyAttribute[i] <- rnorm(RemainingMean,0,1)
+  }
+  cat("\nThere are ",NbrCount, " nodes within  distance of ",NeighborhoodDistance)
+  nNeighbors[mm] <<-NbrCount
+  return (ntwk)
+}
+
+foreach (mm=1:NRepeats) %do% {
+  
+  # generate the subgraph 
+  FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
+
+  NewSub <- BuildFocalSubGraph(FullNetwork,SubGraphSize,FocalNode)
+  WhichIsFocal <- which(V(NewSub)$MyID==FocalNode)
+  
+  plot(NewSub, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(NewSub)$MyAttribute < 0,"0.1",2+V(NewSub)$MyAttribute)),main=c("original atts. Iter: ",mm),vertex.label.cex=0.2)
+
+
+
+
+  # Generate some attribute values
+  newnet <- SpatiallyCorrelatedLabels4(NewSub,FocalNode,1,1.2,1)
+  NewSub <- CopyNet2(newnet) 
+ 
+  ObservedLISA <- OldLisaNetForNodeI(NewSub,WhichIsFocal)
+  LStat <- rep(0,NPerms)
+  
+  for (kk in 1:NPerms){
+    LStat[kk] <- PermuteAndRecalculate(NewSub,FocalNode)
+  }
+  #(head(V(NewSub)$MyAttribute))
+  PVals[mm] <- sum(LStat>ObservedLISA)/NPerms
+  cat("\nNewPValue: ",PVals[mm])
+  
+}
+
+boxplot(PVals)
+plot(nNeighbors,PVals)
 
 
 ```
