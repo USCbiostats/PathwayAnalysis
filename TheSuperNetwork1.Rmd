@@ -1404,11 +1404,13 @@ Now let's try to do repeated permutation tests and look at the distribution of t
 ```{r FullPerm}
 
 library(foreach)
-set.seed(45642)  
-NPerms <- 200
-NRepeats <- 50
+set.seed(95)  #(45643)  
+NPerms <- 100 #250
+NRepeats <- 20
 PVals <- rep(-9,NRepeats)
+OrigLISAs <- rep(-9,NRepeats)
 nNeighbors <- rep(0,NRepeats)
+SubGraphSize <- 500 ## 500
 
 SpatiallyCorrelatedLabels4 <- function(ntwk,CentralNode,NeighborhoodDistance,FocalMean,RemainingMean){
   # label CentralNode and all its near neighbors Normal(FocalMean,1), and everything else Normal(RemainingMean,1).
@@ -1418,7 +1420,7 @@ SpatiallyCorrelatedLabels4 <- function(ntwk,CentralNode,NeighborhoodDistance,Foc
   
   NbrCount<- -1  # Don't want to count the Focal Node itself
   for (i in 1:length(V(ntwk))){
-    if (distances(ntwk,CenterNode,i) <= NeighborhoodDistance){
+    if ((distances(ntwk,CenterNode,i) <= NeighborhoodDistance)&&(NbrCount<50000)){
       V(ntwk)$MyAttribute[i] <- rnorm(1,FocalMean,1)
       NbrCount <- NbrCount +1
     }
@@ -1439,12 +1441,13 @@ foreach (mm=1:NRepeats) %do% {
   WhichIsFocal <- which(V(NewSub)$MyID==FocalNode)
    
   # Generate some attribute values
-  newnet <- SpatiallyCorrelatedLabels4(NewSub,FocalNode,1,3,1)
+  newnet <- SpatiallyCorrelatedLabels4(NewSub,FocalNode,2,3,2)
   NewSub <- CopyNet2(newnet) 
  
-  plot(NewSub, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(NewSub)$MyAttribute < 0,"0.1",2+V(NewSub)$MyAttribute)),main=c("original atts. Iter: ",mm),vertex.label.cex=0.2)
+  #plot(NewSub, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(NewSub)$MyAttribute < 0,"0.1",2+V(NewSub)$MyAttribute)),main=c("original atts. Iter: ",mm),vertex.label.cex=0.2)
 
   ObservedLISA <- OldLisaNetForNodeI(NewSub,WhichIsFocal)
+  OrigLISAs[mm] <- ObservedLISA
   LStat <- rep(0,NPerms)
   
   for (kk in 1:NPerms){
@@ -1452,8 +1455,12 @@ foreach (mm=1:NRepeats) %do% {
   }
   #(head(V(NewSub)$MyAttribute))
   PVals[mm] <- sum(LStat>ObservedLISA)/NPerms
-  cat("\nNewPValue: ",PVals[mm])
-  
+  cat("\nNewPValue: ",PVals[mm],"   orig. LisaStat: ",ObservedLISA)
+  if (1){ #(PVals[mm]>0){
+      plot(NewSub, edge.arrow.size=.2,  vertex.size= as.numeric(ifelse(V(NewSub)$MyAttribute < 2,"2",2+3*V(NewSub)$MyAttribute)),main=c("original atts. Iter: ",mm," p=",PVals[mm]),vertex.label.cex=0.2)
+
+  }
+
 }
 
 (boxplot(PVals))
@@ -1470,12 +1477,6 @@ lo <- loess(y~x)
 plot(x,y,pch='.',main="Supernetwork Degree Distn (truncated at 150")
 lines(predict(lo), col='red', lwd=2)
 
-plot(degree_distribution(NewSub),type='l')
-y <- degree_distribution(NewSub)
-x <- 1:length(y)
-lo <- loess(y~x)
-plot(x,y,pch='.')
-lines(predict(lo), col='red', lwd=2)
 
 for (ii in 1:5){
   FocalNode <- sample(1:vcount(FullNetwork), 1)  # this was how the old function did it
@@ -1483,10 +1484,18 @@ for (ii in 1:5){
   y <- degree_distribution(NewSub)
   x <- 1:length(y)
   lo <- loess(y~x)
-  plot(x,y,pch='.',main="Subgraph Degree Distn")
+  plot(x,y,pch='.',main="Example Subgraph Degree Distn")
   lines(predict(lo), col='red', lwd=2)
 }
 
+# add other graph diagnostics
+cat("\nDiam. of S: ",diameter(FullNetwork))
+cat("\nDiam.of e.g. subgraph: ",diameter(NewSub))
+cat("\n\nAv. Path Len of S: ",average.path.length(FullNetwork))
+cat("\nAv. Path Len of e.g. subgraph: ",average.path.length(NewSub))
+
+# q: how best to compare two graphs in terms of their overall structure?
+# a: use the graph edit distance, which is the minimum number of edge additions, deletions, and substitutions needed to transform one graph into the other.
 
 ```
 
